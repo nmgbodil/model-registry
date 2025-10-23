@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "model-registry"
+version = "0.1.0"
+description = "Trustworthy model registry backend and workers"
+# If/when you have runtime deps, add them here:
+dependencies = [
+  "flask>=3.1.2",
+  "flask-cors>=6.0.1",
+  "types-flask-cors"
+]
+
+[project.optional-dependencies]
+dev = [
+  "black",
+  "flake8",
+  "flake8-docstrings",
+  "isort",
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "pre-commit",
+  "hatch"
+]
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+strict = true
+files = ["backend/app", "backend/tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "unit: fast, isolated tests",
+  "integration: hits external systems (db, services, network)",
+  "e2e: full end-to-end flows"
+]
+
+[tool.setuptools.packages.find]
+where = ["app"]
