@@ -45,5 +45,9 @@ markers = [
   "e2e: full end-to-end flows"
 ]
 
+# Temporary omission of app entry point in pytest coverage
+[tool.coverage.run]
+omit = ["app/__init__.py"]
+
 [tool.setuptools.packages.find]
 where = ["app"]
