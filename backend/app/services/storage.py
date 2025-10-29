@@ -39,7 +39,7 @@ def download_model(model_name: str, filename: str, output_dir: str = "./download
     output_path = os.path.join(output_dir, filename)
     try:
         s3.download_file(S3_BUCKET, key, output_path)
-        print(f"✅ Downloaded {key} to {output_path}")
+        print(f"Downloaded {key} to {output_path}")
         return output_path
     except ClientError as e:
         print(f"S3 download failed: {e}")
