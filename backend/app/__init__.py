@@ -1,34 +1,24 @@
-"""This module initializes the Flask application for the backend."""
+"""Application factory for the model-registry API."""
+
+from __future__ import annotations
 
 from flask import Flask
 from flask_cors import CORS
 
 
 def create_app() -> Flask:
-    """Create and configure the Flask application.
-
-    Args:
-        test_config (dict, optional): Configuration dictionary for testing.
-            Defaults to None.
-
-    Returns:
-        Flask: The configured Flask application instance.
-    """
-    app = Flask(__name__, instance_relative_config=True)
+    """Create and configure the Flask application."""
+    app = Flask(__name__)
     CORS(app)
 
-    @app.get("/")
-    def hello() -> str:
-        """A simple route that returns a welcome message.
+    # Blueprints
+    from .api.routes_health import bp as health_bp  # isort: skip
 
-        Returns:
-            str: Welcome message.
-        """
-        return "Hello World, welcome to Model Registry backend!"
+    app.register_blueprint(health_bp)
+
+    @app.get("/")
+    def index() -> dict[str, str]:
+        """Root smoke-check endpoint."""
+        return {"ok": "true"}
 
     return app
-
-
-if __name__ == "__main__":
-    app = create_app()
-    app.run(debug=True, port=5001, host="0.0.0.0")
