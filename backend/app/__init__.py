@@ -1,24 +1,33 @@
-"""Application factory for the model-registry API."""
+"""Flask app factory for the model registry."""
 
 from __future__ import annotations
 
-from flask import Flask
+from flask import Flask  # jsonify
 from flask_cors import CORS
+
+from .api.routes_artifacts import bp_artifacts
+from .config import get_settings
+from .db import Base, engine
 
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
+    settings = get_settings()
     app = Flask(__name__)
-    CORS(app)
+    app.config["MAX_CONTENT_LENGTH"] = settings.MAX_CONTENT_LENGTH
+
+    # CORS for your frontend (adjust origin if needed)
+    CORS(app, resources={r"/*": {"origins": "*"}})
+
+    # Health
+    @app.get("/health")
+    def health() -> tuple[dict[str, str], int]:
+        return {"status": "ok"}, 200
 
     # Blueprints
-    from .api.routes_health import bp as health_bp  # isort: skip
+    app.register_blueprint(bp_artifacts)
 
-    app.register_blueprint(health_bp)
-
-    @app.get("/")
-    def index() -> dict[str, str]:
-        """Root smoke-check endpoint."""
-        return {"ok": "true"}
+    # Ensure tables
+    Base.metadata.create_all(bind=engine)
 
     return app
