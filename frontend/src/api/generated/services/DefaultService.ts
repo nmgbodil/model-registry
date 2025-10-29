@@ -22,7 +22,6 @@ import type { SimpleLicenseCheckRequest } from '../models/SimpleLicenseCheckRequ
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
-
 export class DefaultService {
     /**
      * Heartbeat check (BASELINE)
@@ -40,22 +39,15 @@ export class DefaultService {
      * Get component health details (NON-BASELINE)
      * Return per-component health diagnostics, including status, active issues, and log references.
      * Use this endpoint to power deeper observability dashboards or for incident debugging.
+     * @param windowMinutes Length of the trailing observation window, in minutes (5-1440). Defaults to 60.
+     * @param includeTimeline Set to true to include per-component activity timelines sampled across the window.
      * @returns HealthComponentCollection Component-level health detail.
      * @throws ApiError
      */
-    public static registryHealthComponents({
-        windowMinutes = 60,
-        includeTimeline = false,
-    }: {
-        /**
-         * Length of the trailing observation window, in minutes (5-1440). Defaults to 60.
-         */
-        windowMinutes?: number,
-        /**
-         * Set to true to include per-component activity timelines sampled across the window.
-         */
-        includeTimeline?: boolean,
-    }): CancelablePromise<HealthComponentCollection> {
+    public static registryHealthComponents(
+        windowMinutes: number = 60,
+        includeTimeline: boolean = false,
+    ): CancelablePromise<HealthComponentCollection> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/health/components',
@@ -73,21 +65,17 @@ export class DefaultService {
      * If you want to enumerate all artifacts, provide an array with a single artifact_query whose name is "*".
      *
      * The response is paginated; the response header includes the offset to use in the next query.
+     * @param xAuthorization
+     * @param requestBody
+     * @param offset Provide this for pagination. If not provided, returns the first page of results.
      * @returns ArtifactMetadata List of artifacts
      * @throws ApiError
      */
-    public static artifactsList({
-        xAuthorization,
-        requestBody,
-        offset,
-    }: {
+    public static artifactsList(
         xAuthorization: AuthenticationToken,
         requestBody: Array<ArtifactQuery>,
-        /**
-         * Provide this for pagination. If not provided, returns the first page of results.
-         */
         offset?: EnumerateOffset,
-    }): CancelablePromise<Array<ArtifactMetadata>> {
+    ): CancelablePromise<Array<ArtifactMetadata>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/artifacts',
@@ -109,14 +97,13 @@ export class DefaultService {
     /**
      * Reset the registry. (BASELINE)
      * Reset the registry to a system default state.
+     * @param xAuthorization
      * @returns any Registry is reset.
      * @throws ApiError
      */
-    public static registryReset({
-        xAuthorization,
-    }: {
+    public static registryReset(
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<any> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/reset',
@@ -132,28 +119,27 @@ export class DefaultService {
     /**
      * Interact with the artifact with this id. (BASELINE)
      * Return this artifact.
+     * @param artifactType Artifact type
+     * @param id artifact id
+     * @param xAuthorization
+     * @param artifactType Type of artifact to fetch
+     * @param id id of artifact to fetch
      * @returns Artifact Return the artifact. url is required.
      * @throws ApiError
      */
-    public static artifactRetrieve({
-        artifactType,
-        id,
-        xAuthorization,
-    }: {
-        /**
-         * Artifact type
-         */
+    public static artifactRetrieve(
         artifactType: ArtifactType,
-        /**
-         * artifact id
-         */
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<Artifact> {
+        artifactType: ArtifactType,
+        id: ArtifactID,
+    ): CancelablePromise<Artifact> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifacts/{artifact_type}/{id}',
             path: {
+                'artifact_type': artifactType,
+                'id': id,
                 'artifact_type': artifactType,
                 'id': id,
             },
@@ -172,33 +158,29 @@ export class DefaultService {
      * The name and id must match.
      *
      * The artifact source (from artifact_data) will replace the previous contents.
+     * @param artifactType Artifact type
+     * @param id artifact id
+     * @param xAuthorization
+     * @param artifactType Type of artifact to update
+     * @param id artifact id
+     * @param requestBody
      * @returns any Artifact is updated.
      * @throws ApiError
      */
-    public static artifactUpdate({
-        artifactType,
-        id,
-        xAuthorization,
-        requestBody,
-    }: {
-        /**
-         * Artifact type
-         */
+    public static artifactUpdate(
         artifactType: ArtifactType,
-        /**
-         * artifact id
-         */
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-        /**
-         * Type of artifact to update
-         */
+        artifactType: ArtifactType,
+        id: ArtifactID,
         requestBody: Artifact,
-    }): CancelablePromise<any> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/artifacts/{artifact_type}/{id}',
             path: {
+                'artifact_type': artifactType,
+                'id': id,
                 'artifact_type': artifactType,
                 'id': id,
             },
@@ -217,28 +199,27 @@ export class DefaultService {
     /**
      * Delete this artifact. (NON-BASELINE)
      * Delete only the artifact that matches "id". (id is a unique identifier for an artifact)
+     * @param artifactType Artifact type
+     * @param id artifact id
+     * @param xAuthorization
+     * @param artifactType Type of artifact to delete
+     * @param id artifact id
      * @returns any Artifact is deleted.
      * @throws ApiError
      */
-    public static artifactDelete({
-        artifactType,
-        id,
-        xAuthorization,
-    }: {
-        /**
-         * Artifact type
-         */
+    public static artifactDelete(
         artifactType: ArtifactType,
-        /**
-         * artifact id
-         */
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<any> {
+        artifactType: ArtifactType,
+        id: ArtifactID,
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/artifacts/{artifact_type}/{id}',
             path: {
+                'artifact_type': artifactType,
+                'id': id,
                 'artifact_type': artifactType,
                 'id': id,
             },
@@ -255,21 +236,17 @@ export class DefaultService {
     /**
      * Register a new artifact. (BASELINE)
      * Register a new artifact by providing a downloadable source url. Artifacts may share a name with existing entries; refer to the description above to see how an id is formed for an artifact.
+     * @param artifactType Type of artifact being ingested.
+     * @param xAuthorization
+     * @param requestBody
      * @returns Artifact Success. Check the id in the returned metadata for the official ID.
      * @throws ApiError
      */
-    public static artifactCreate({
-        artifactType,
-        xAuthorization,
-        requestBody,
-    }: {
-        /**
-         * Type of artifact being ingested.
-         */
+    public static artifactCreate(
         artifactType: ArtifactType,
         xAuthorization: AuthenticationToken,
         requestBody: ArtifactData,
-    }): CancelablePromise<Artifact> {
+    ): CancelablePromise<Artifact> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/artifact/{artifact_type}',
@@ -291,16 +268,15 @@ export class DefaultService {
     }
     /**
      * Get ratings for this model artifact. (BASELINE)
+     * @param id
+     * @param xAuthorization
      * @returns ModelRating Return the rating. Only use this if each metric was computed successfully.
      * @throws ApiError
      */
-    public static modelArtifactRate({
-        id,
-        xAuthorization,
-    }: {
+    public static modelArtifactRate(
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<ModelRating> {
+    ): CancelablePromise<ModelRating> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifact/model/{id}/rate',
@@ -320,20 +296,19 @@ export class DefaultService {
     }
     /**
      * Get the cost of an artifact (BASELINE)
+     * @param artifactType
+     * @param id
+     * @param xAuthorization
+     * @param dependency
      * @returns ArtifactCost Return the total cost of the artifact, and its dependencies
      * @throws ApiError
      */
-    public static getArtifactCost({
-        artifactType,
-        id,
-        xAuthorization,
-        dependency = false,
-    }: {
+    public static getArtifactCost(
         artifactType: ArtifactType,
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-        dependency?: boolean,
-    }): CancelablePromise<ArtifactCost> {
+        dependency: boolean = false,
+    ): CancelablePromise<ArtifactCost> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifact/{artifact_type}/{id}/cost',
@@ -358,14 +333,13 @@ export class DefaultService {
     /**
      * (NON-BASELINE)
      * Create an access token.
+     * @param requestBody
      * @returns AuthenticationToken Return an AuthenticationToken.
      * @throws ApiError
      */
-    public static createAuthToken({
-        requestBody,
-    }: {
+    public static createAuthToken(
         requestBody: AuthenticationRequest,
-    }): CancelablePromise<AuthenticationToken> {
+    ): CancelablePromise<AuthenticationToken> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/authenticate',
@@ -381,16 +355,17 @@ export class DefaultService {
     /**
      * List artifact metadata for this name. (NON-BASELINE)
      * Return metadata for each artifact matching this name.
+     * @param name
+     * @param xAuthorization
+     * @param xAuthorization
      * @returns ArtifactMetadata Return artifact metadata entries that match the provided name.
      * @throws ApiError
      */
-    public static artifactByNameGet({
-        name,
-        xAuthorization,
-    }: {
+    public static artifactByNameGet(
         name: ArtifactName,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<Array<ArtifactMetadata>> {
+        xAuthorization: AuthenticationToken,
+    ): CancelablePromise<Array<ArtifactMetadata>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifact/byName/{name}',
@@ -398,6 +373,7 @@ export class DefaultService {
                 'name': name,
             },
             headers: {
+                'X-Authorization': xAuthorization,
                 'X-Authorization': xAuthorization,
             },
             errors: {
@@ -409,24 +385,17 @@ export class DefaultService {
     }
     /**
      * Retrieve audit entries for this artifact. (NON-BASELINE)
+     * @param artifactType Type of artifact to audit
+     * @param id artifact id
+     * @param xAuthorization
      * @returns ArtifactAuditEntry Return the audit trail for this artifact. (NON-BASELINE)
      * @throws ApiError
      */
-    public static artifactAuditGet({
-        artifactType,
-        id,
-        xAuthorization,
-    }: {
-        /**
-         * Type of artifact to audit
-         */
+    public static artifactAuditGet(
         artifactType: ArtifactType,
-        /**
-         * artifact id
-         */
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<Array<ArtifactAuditEntry>> {
+    ): CancelablePromise<Array<ArtifactAuditEntry>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifact/{artifact_type}/{id}/audit',
@@ -446,19 +415,15 @@ export class DefaultService {
     }
     /**
      * Retrieve the lineage graph for this artifact. (BASELINE)
+     * @param id artifact id
+     * @param xAuthorization
      * @returns ArtifactLineageGraph Lineage graph extracted from structured metadata. (BASELINE)
      * @throws ApiError
      */
-    public static artifactLineageGet({
-        id,
-        xAuthorization,
-    }: {
-        /**
-         * artifact id
-         */
+    public static artifactLineageGet(
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
-    }): CancelablePromise<ArtifactLineageGraph> {
+    ): CancelablePromise<ArtifactLineageGraph> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/artifact/model/{id}/lineage',
@@ -477,21 +442,17 @@ export class DefaultService {
     }
     /**
      * Assess license compatibility for fine-tune and inference usage. (BASELINE)
+     * @param id artifact id
+     * @param xAuthorization
+     * @param requestBody
      * @returns boolean License compatibility analysis produced successfully. (BASELINE)
      * @throws ApiError
      */
-    public static artifactLicenseCheck({
-        id,
-        xAuthorization,
-        requestBody,
-    }: {
-        /**
-         * artifact id
-         */
+    public static artifactLicenseCheck(
         id: ArtifactID,
         xAuthorization: AuthenticationToken,
         requestBody: SimpleLicenseCheckRequest,
-    }): CancelablePromise<boolean> {
+    ): CancelablePromise<boolean> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/artifact/model/{id}/license-check',
@@ -514,16 +475,15 @@ export class DefaultService {
     /**
      * Get any artifacts fitting the regular expression (BASELINE).
      * Search for an artifact using regular expression over artifact names and READMEs. This is similar to search by name.
+     * @param xAuthorization
+     * @param requestBody
      * @returns ArtifactMetadata Return a list of artifacts.
      * @throws ApiError
      */
-    public static artifactByRegExGet({
-        xAuthorization,
-        requestBody,
-    }: {
+    public static artifactByRegExGet(
         xAuthorization: AuthenticationToken,
         requestBody: ArtifactRegEx,
-    }): CancelablePromise<Array<ArtifactMetadata>> {
+    ): CancelablePromise<Array<ArtifactMetadata>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/artifact/byRegEx',
