@@ -10,7 +10,8 @@ description = "Trustworthy model registry backend and workers"
 dependencies = [
   "flask>=3.1.2",
   "flask-cors>=6.0.1",
-  "types-flask-cors"
+  "types-flask-cors",
+  "boto3>=1.15.0"
 ]
 
 [project.optional-dependencies]
