@@ -1,29 +1,30 @@
-"""backend/app/models.py` defines the database models for the application."""
+"""app/models.py SQLAlchemy models for the application."""
 
+# app/models.py
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy.orm import Mapped, mapped_column
 
-
-class Base(DeclarativeBase):
-    """Typed SQLAlchemy declarative base."""
-
-    pass
+from .db import Base  # re-exported via __all__
 
 
 class Artifact(Base):
-    """Artifact metadata persisted in the database."""
+    """ORM model for an artifact (uploaded file)."""
 
     __tablename__ = "artifacts"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    filename: Mapped[str]
-    stored_path: Mapped[str]
-    content_type: Mapped[Optional[str]]
-    size_bytes: Mapped[int]
-    checksum_sha256: Mapped[Optional[str]]
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    stored_path: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    checksum_sha256: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+
+__all__ = ["Base", "Artifact"]

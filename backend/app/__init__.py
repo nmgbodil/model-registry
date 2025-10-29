@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from flask import Flask  # jsonify
+from flask import Flask
 from flask_cors import CORS
 
 from .api.routes_artifacts import bp_artifacts
+from .api.routes_health import bp
 from .config import get_settings
-from .db import Base, engine
+from .db import Base, engine  # import the global Engine instance
 
 
 def create_app() -> Flask:
@@ -16,18 +17,14 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = settings.MAX_CONTENT_LENGTH
 
-    # CORS for your frontend (adjust origin if needed)
+    # Enable CORS
     CORS(app, resources={r"/*": {"origins": "*"}})
 
-    # Health
-    @app.get("/health")
-    def health() -> tuple[dict[str, str], int]:
-        return {"status": "ok"}, 200
-
-    # Blueprints
+    # Register blueprints
+    app.register_blueprint(bp)
     app.register_blueprint(bp_artifacts)
 
-    # Ensure tables
+    # Ensure DB tables exist (bind to the imported engine; DO NOT reassign or call it)
     Base.metadata.create_all(bind=engine)
 
     return app
