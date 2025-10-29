@@ -1,7 +1,8 @@
 # registry/storage/s3_client.py
+import os
+
 import boto3
 from botocore.exceptions import ClientError
-import os
 
 # Load environment variables (set these in GitHub Secrets or .env)
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
@@ -14,6 +15,7 @@ s3 = boto3.client(
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
     aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
 )
+
 
 def upload_model(file_path: str, model_name: str) -> str:
     """
@@ -30,7 +32,10 @@ def upload_model(file_path: str, model_name: str) -> str:
         print(f"S3 upload failed: {e}")
         raise
 
-def download_model(model_name: str, filename: str, output_dir: str = "./downloads") -> str:
+
+def download_model(
+    model_name: str, filename: str, output_dir: str = "./downloads"
+) -> str:
     """
     Downloads a specific model file from S3 to local directory.
     """
@@ -44,6 +49,7 @@ def download_model(model_name: str, filename: str, output_dir: str = "./download
     except ClientError as e:
         print(f"S3 download failed: {e}")
         raise
+
 
 def list_models(prefix: str = "models/"):
     """
