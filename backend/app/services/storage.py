@@ -5,7 +5,7 @@ import os
 
 # Load environment variables (set these in GitHub Secrets or .env)
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
-S3_BUCKET = os.getenv("S3_BUCKET_NAME", "model-registry-bucket-ott29")
+S3_BUCKET = os.getenv("S3_BUCKET_NAME", "mod-reg-bucket-28")
 
 # Create the S3 client using credentials from environment (GitHub Secrets)
 s3 = boto3.client(
