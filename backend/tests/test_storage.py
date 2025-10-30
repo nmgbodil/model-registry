@@ -1,5 +1,13 @@
+"""Unit tests for S3 storage helpers in app.services.storage.
+
+These tests exercise upload, download and listing helpers while
+patching the module-level S3 client to avoid network calls.
+"""
+
 import os
 import tempfile
+from pathlib import Path
+from typing import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,13 +17,16 @@ import app.services.storage as storage
 
 
 @pytest.fixture
-def mock_s3_client():
-    """Fixture to patch boto3 S3 client inside storage module."""
+def mock_s3_client() -> Iterator[MagicMock]:
+    """Fixture to patch boto3 S3 client inside storage module.
+
+    Yields a MagicMock that replaces the module-level ``s3`` client.
+    """
     with patch.object(storage, "s3") as mock_s3:
         yield mock_s3
 
 
-def test_upload_model(mock_s3_client):
+def test_upload_model(mock_s3_client: MagicMock) -> None:
     """Ensure upload_model constructs the correct key and returns the proper URI."""
     # Create a temporary fake file
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -40,7 +51,7 @@ def test_upload_model(mock_s3_client):
     os.remove(tmp_path)
 
 
-def test_download_model(mock_s3_client, tmp_path):
+def test_download_model(mock_s3_client: MagicMock, tmp_path: Path) -> None:
     """Ensure download_model downloads file to expected path."""
     model_name = "test_model"
     filename = "weights.bin"
@@ -59,7 +70,7 @@ def test_download_model(mock_s3_client, tmp_path):
     assert str(expected_path) == result_path
 
 
-def test_list_models_with_contents(mock_s3_client):
+def test_list_models_with_contents(mock_s3_client: MagicMock) -> None:
     """Ensure list_models returns expected list when S3 responds with objects."""
     mock_s3_client.list_objects_v2.return_value = {
         "Contents": [{"Key": "models/a.pt"}, {"Key": "models/b.pt"}]
@@ -73,7 +84,7 @@ def test_list_models_with_contents(mock_s3_client):
     assert result == ["models/a.pt", "models/b.pt"]
 
 
-def test_list_models_empty(mock_s3_client):
+def test_list_models_empty(mock_s3_client: MagicMock) -> None:
     """Ensure list_models returns empty list when no Contents present."""
     mock_s3_client.list_objects_v2.return_value = {}
 
