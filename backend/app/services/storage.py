@@ -1,8 +1,21 @@
-# registry/storage/s3_client.py
+"""S3 storage helpers for uploading, downloading, and listing models.
+
+This module provides thin helpers that talk to Amazon S3 using boto3.
+Environment variables used:
+
+- ``AWS_REGION`` (default: "us-east-2")
+- ``S3_BUCKET_NAME`` (default: "mod-reg-bucket-28")
+- ``AWS_ACCESS_KEY_ID`` and ``AWS_SECRET_ACCESS_KEY`` for credentials
+
+These helpers are small conveniences consumed by the model registry API
+and workers.
+"""
+
 import os
 
 import boto3
 from botocore.exceptions import ClientError
+from typing import List
 
 # Load environment variables (set these in GitHub Secrets or .env)
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
@@ -18,9 +31,10 @@ s3 = boto3.client(
 
 
 def upload_model(file_path: str, model_name: str) -> str:
-    """
-    Uploads a model artifact to S3 and returns its S3 URI.
-    Example key structure: models/{model_name}/{filename}
+    """Upload a model artifact to S3 and return its S3 URI.
+
+    The S3 object key uses the pattern ``models/{model_name}/{filename}``.
+    Returns the ``s3://`` URI of the uploaded object on success.
     """
     try:
         key = f"models/{model_name}/{os.path.basename(file_path)}"
@@ -36,8 +50,10 @@ def upload_model(file_path: str, model_name: str) -> str:
 def download_model(
     model_name: str, filename: str, output_dir: str = "./downloads"
 ) -> str:
-    """
-    Downloads a specific model file from S3 to local directory.
+    """Download a specific model file from S3 to a local directory.
+
+    Creates ``output_dir`` if it does not exist and returns the local
+    path to the downloaded file.
     """
     os.makedirs(output_dir, exist_ok=True)
     key = f"models/{model_name}/{filename}"
@@ -51,10 +67,11 @@ def download_model(
         raise
 
 
-def list_models(prefix: str = "models/"):
-    """
-    Lists all uploaded models under a prefix.
-    Useful for your 'enumerate' API endpoint.
+def list_models(prefix: str = "models/") -> List[str]:
+    """List uploaded model keys under ``prefix``.
+
+    Returns a list of object keys found under the given prefix. If no
+    objects are found an empty list is returned.
     """
     try:
         response = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=prefix)
