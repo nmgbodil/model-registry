@@ -12,10 +12,10 @@ and workers.
 """
 
 import os
+from typing import List
 
 import boto3
 from botocore.exceptions import ClientError
-from typing import List
 
 # Load environment variables (set these in GitHub Secrets or .env)
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")

@@ -38,6 +38,7 @@ line_length = 88
 [tool.mypy]
 strict = true
 files = ["backend/app", "backend/tests"]
+exclude = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
