@@ -23,7 +23,7 @@ jobs:
           # Copy backend app and essential files
           cp -r backend/app temp_build/
           cp backend/pyproject.toml temp_build/
-          cp backend/wsgi.py temp_build/
+          cp backend/app/wsgi.py temp_build/
           cp backend/gunicorn.conf.py temp_build/
 
           # Optional: copy scripts if needed on server
