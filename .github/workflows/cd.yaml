@@ -20,25 +20,25 @@ jobs:
           # Clean temp folder
           mkdir temp_build
 
-          # Copy only backend app folder and necessary files
+          # Copy backend app and essential files
           cp -r backend/app temp_build/
-          cp backend/requirements.txt temp_build/
+          cp backend/pyproject.toml temp_build/
           cp backend/wsgi.py temp_build/
           cp backend/gunicorn.conf.py temp_build/
 
-          # Optional: copy scripts needed on server
+          # Optional: copy scripts if needed on server
           # cp -r scripts/ temp_build/
 
           cd temp_build
 
-          # Create tar.gz archive, excluding pycache and temporary files
+          # Create tar.gz archive, excluding pycache and temp files
           tar --exclude='__pycache__' --exclude='*.pyc' \
               --exclude='*.log' --exclude='.git' -czf ../app.tar.gz ./
 
           cd ..
           rm -rf temp_build
 
-      # 3️⃣ Copy package to EC2
+      # 3️⃣ Upload package to EC2
       - name: Upload package to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -64,13 +64,13 @@ jobs:
             # Extract updated code
             tar -xzf ~/deployments/app.tar.gz -C ~/backend/app --overwrite
 
-            # Install/update dependencies
-            pip install -r requirements.txt
+            # Install/update dependencies using editable dev install
+            pip install -e ".[dev]"
 
             # Restart Gunicorn service
             sudo systemctl restart gunicorn
 
-            # Restart NGINX if you want (optional if configs unchanged)
+            # Restart NGINX if needed
             sudo systemctl restart nginx
 
             echo "Backend deployment complete"
