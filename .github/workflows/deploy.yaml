@@ -13,10 +13,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- Step 1: Archive the app to upload to EC2 ---
+      # --- Step 1: Create a clean deployment package ---
       - name: Create deployment package
         run: |
-          tar -czf app.tar.gz ./
+          # Make a temporary folder for packaging
+          mkdir temp_build
+
+          # Copy only app source files and requirements
+          cp -r app/ requirements.txt wsgi.py temp_build/
+
+          # Optionally copy scripts or config if needed
+          # cp -r scripts/ temp_build/
+
+          cd temp_build
+
+          # Create the tar.gz archive, excluding pycache
+          tar --exclude='__pycache__' --exclude='*.pyc' -czf ../app.tar.gz ./
+
+          cd ..
+          rm -rf temp_build
 
       # --- Step 2: Copy package to EC2 ---
       - name: Upload code to EC2
@@ -41,7 +56,7 @@ jobs:
             # Move to app directory (adjust path as needed)
             cd ~/app
 
-            # Extract newly uploaded code
+            # Extract newly uploaded code safely
             tar -xzf ~/deployments/app.tar.gz -C ~/app --overwrite
 
             # Install/update dependencies
