@@ -1,0 +1,76 @@
+name: Deploy Flask Backend to EC2
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout the repo
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Package the backend Flask app
+      - name: Create deployment package
+        run: |
+          # Clean temp folder
+          mkdir temp_build
+
+          # Copy only backend app folder and necessary files
+          cp -r backend/app temp_build/
+          cp backend/requirements.txt temp_build/
+          cp backend/wsgi.py temp_build/
+          cp backend/gunicorn.conf.py temp_build/
+
+          # Optional: copy scripts needed on server
+          # cp -r scripts/ temp_build/
+
+          cd temp_build
+
+          # Create tar.gz archive, excluding pycache and temporary files
+          tar --exclude='__pycache__' --exclude='*.pyc' \
+              --exclude='*.log' --exclude='.git' -czf ../app.tar.gz ./
+
+          cd ..
+          rm -rf temp_build
+
+      # 3️⃣ Copy package to EC2
+      - name: Upload package to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "app.tar.gz"
+          target: "~/deployments"
+
+      # 4️⃣ SSH into EC2 and deploy
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Starting backend deployment..."
+
+            # Move to backend app folder
+            cd ~/backend/app
+
+            # Extract updated code
+            tar -xzf ~/deployments/app.tar.gz -C ~/backend/app --overwrite
+
+            # Install/update dependencies
+            pip install -r requirements.txt
+
+            # Restart Gunicorn service
+            sudo systemctl restart gunicorn
+
+            # Restart NGINX if you want (optional if configs unchanged)
+            sudo systemctl restart nginx
+
+            echo "Backend deployment complete"
