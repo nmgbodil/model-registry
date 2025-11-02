@@ -88,3 +88,52 @@ jobs:
           name: coverage-python312
           path: backend/coverage.xml
           if-no-files-found: warn
+
+  build:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    needs: [unit-tests]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Create dependencies package
+        run: |
+          python -m pip install -U build
+          python -m build
+      
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: backend/dist/*.whl
+          if-no-files-found: error
+      
+      - name: Create deployment tar
+        run: |
+          # Clean temp folder
+          rm -rf temp_build
+          mkdir temp_build
+
+          # Copy backend app and essential files
+          cp -r app temp_build/
+          cp yproject.toml temp_build/
+          cp gunicorn.conf.py temp_build/
+
+          # Create tar.gz archive, excluding pycache and temp files
+          tar --exclude='__pycache__' --exclude='*.pyc' \
+              --exclude='*.log' --exclude='.git' -czf ../app.tar.gz -C temp_build .
+
+          rm -rf temp_build
+      
+      - name: Upload deployment tar
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-tar
+          path: app.tar.gz
+          if-no-files-found: error
