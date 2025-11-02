@@ -122,7 +122,7 @@ jobs:
 
           # Copy backend app and essential files
           cp -r app temp_build/
-          cp yproject.toml temp_build/
+          cp pyproject.toml temp_build/
           cp gunicorn.conf.py temp_build/
 
           # Create tar.gz archive, excluding pycache and temp files
