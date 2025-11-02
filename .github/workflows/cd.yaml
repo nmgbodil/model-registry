@@ -6,6 +6,10 @@ on:
     types:
       - completed
 
+permissions:
+  contents: read
+  actions: read   # <-- allows download-artifact from the CI run
+
 jobs:
   deploy:
     if: >
@@ -28,12 +32,18 @@ jobs:
         with:
           name: wheel
           path: ./artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
 
       - name: Download tar artifact
         uses: actions/download-artifact@v4
         with:
           name: app-tar
           path: ./artifacts
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
 
       # Upload tar package to EC2
       - name: Upload tar package to EC2
