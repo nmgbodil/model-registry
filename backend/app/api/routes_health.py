@@ -1,27 +1,50 @@
-"""endpoint for health checks."""
-
 # backend/app/api/routes_health.py
+"""Health endpoints aligned with the Phase 2 spec."""
+
 from __future__ import annotations
 
-import os
-import time
+from datetime import datetime, timezone
+from http import HTTPStatus
 from typing import Final
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 bp: Final = Blueprint("health", __name__)
-_START: Final[float] = time.monotonic()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /health  → Heartbeat check (BASELINE)
+#   Spec: returns HTTP 200 when the API is reachable. No response schema required.
+# ──────────────────────────────────────────────────────────────────────────────
 @bp.get("/health")
 def health() -> ResponseReturnValue:
-    """Lightweight health probe used by graders and dashboards."""
-    return jsonify(
-        {
-            "status": "ok",
-            "app": os.environ.get("APP_NAME", "model-registry"),
-            "build": os.environ.get("GIT_SHA", "dev"),
-            "uptime_s": round(time.monotonic() - _START, 3),
-        }
-    )
+    # Minimal body to keep clients happy, but spec only requires 200.
+    return jsonify({"status": "ok"}), HTTPStatus.OK
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GET /health/components  → Component health (NON-BASELINE)
+#   Query:
+#     - windowMinutes: int (5–1440), default 60
+#     - includeTimeline: bool (optional; accepted but ignored in this stub)
+#   Response: { components: [], generated_at: <ISO-8601 UTC>, window_minutes: <int> }
+# ──────────────────────────────────────────────────────────────────────────────
+@bp.get("/health/components")
+def health_components() -> ResponseReturnValue:
+    # windowMinutes parsing with bounds per spec
+    try:
+        window_minutes = int(request.args.get("windowMinutes", "60"))
+    except ValueError:
+        window_minutes = 60
+    window_minutes = max(5, min(1440, window_minutes))
+
+    # includeTimeline is accepted but this stub does not populate timelines
+    _ = request.args.get("includeTimeline", "false").lower() in {"1", "true", "yes"}
+
+    payload = {
+        "components": [],  # you can populate this later with real component data
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "window_minutes": window_minutes,
+    }
+    return jsonify(payload), HTTPStatus.OK

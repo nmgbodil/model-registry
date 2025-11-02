@@ -1,6 +1,5 @@
 """app/models.py SQLAlchemy models for the application."""
 
-# app/models.py
 from __future__ import annotations
 
 from datetime import datetime
@@ -20,8 +19,13 @@ class Artifact(Base):
     filename: Mapped[str] = mapped_column(String, nullable=False)
     stored_path: Mapped[str] = mapped_column(String, nullable=False)
     content_type: Mapped[str | None] = mapped_column(String, nullable=True)
-    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    checksum_sha256: Mapped[str] = mapped_column(String, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Relaxed: allow missing checksum (URL-only ingests, best-effort metadata)
+    checksum_sha256: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+        default="",           # Python-side default
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
