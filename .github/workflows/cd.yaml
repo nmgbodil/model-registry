@@ -31,7 +31,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wheel
-          path: ./artifacts
+          path: ./artifacts/wheel
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -40,7 +40,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-tar
-          path: ./artifacts
+          path: ./artifacts/app.tar.gz
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -62,7 +62,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./artifacts/*.whl"
+          source: "./artifacts/wheel"
           target: "~/tmp"
 
       # SSH into EC2 and deploy
@@ -88,7 +88,7 @@ jobs:
             rm -rf "$TMP_DIR"
 
             # Install/update dependencies using editable dev install
-            /srv/model-registry/backend/venv/bin/pip install —no-cache-dir —upgrade “~/tmp/*.whl”
+            /srv/model-registry/backend/venv/bin/pip install -—no-cache-dir —upgrade “~/tmp/wheel”
 
             # Restart Gunicorn service
             sudo systemctl restart gunicorn
