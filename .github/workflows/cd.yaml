@@ -2,13 +2,13 @@ name: Deploy Flask Backend to EC2
 
 on:
   workflow_run:
-    workflows: ["CI"]       # Name of your CI workflow
+    workflows: ["CI"]
     types:
       - completed
 
 permissions:
   contents: read
-  actions: read   # <-- allows download-artifact from the CI run
+  actions: read   # allows download-artifact from the CI run
 
 jobs:
   deploy:
@@ -22,16 +22,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the repo
+      # 1) Checkout the repo
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Download artifacts from CI workflow
+      # 2) Download artifacts from the triggering CI run
       - name: Download wheel artifact
         uses: actions/download-artifact@v4
         with:
           name: wheel
-          path: .
+          path: ./wheel
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -40,32 +40,31 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-tar
-          path: .
+          path: ./artifacts           # <-- directory (not a filename)
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
 
-      # Upload tar package to EC2
+      # 3) Upload artifacts to EC2
       - name: Upload tar package to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./app.tar.gz"
+          source: "./artifacts/app.tar.gz"    # <-- upload the actual tar.gz file
           target: "~/deployments"
 
-      # Upload wheel package to EC2
       - name: Upload wheel package to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./wheel"
+          source: "./wheel"                   # uploads the folder with .whl(s)
           target: "~/tmp"
 
-      # SSH into EC2 and deploy
+      # 4) SSH into EC2 and deploy
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -76,21 +75,19 @@ jobs:
             echo "Starting backend deployment..."
 
             # Extract updated code
-            TMP_DIR="$(mktemp -d)"; \
-            tar -xzf ~/deployments/app.tar.gz -C "$TMP_DIR"; \
+            TMP_DIR="$(mktemp -d)"
+            tar -xzf ~/deployments/app.tar.gz -C "$TMP_DIR"
             sudo rsync -avz --delete \
               --exclude 'venv/' --exclude '.venv/' \
-              --exclude 'pycache/' --exclude '.pyc' --exclude '.log' \
-              "$TMP_DIR"/ /srv/model-registry/backend/; \
+              --exclude '__pycache__/' --exclude '*.pyc' --exclude '*.log' \
+              "$TMP_DIR"/ /srv/model-registry/backend/
             rm -rf "$TMP_DIR"
 
-            # Install/update dependencies using editable dev install
-            /srv/model-registry/backend/venv/bin/pip install -—no-cache-dir —upgrade “~/tmp/wheel”
+            # Install/update dependencies from wheel(s)
+            /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/*.whl
 
-            # Restart Gunicorn service
+            # Restart services
             sudo systemctl restart gunicorn
-
-            # Restart NGINX if needed
             sudo systemctl restart nginx
 
             echo "Backend deployment complete"
