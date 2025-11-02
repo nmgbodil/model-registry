@@ -31,7 +31,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: wheel
-          path: ./artifacts/wheel
+          path: ./wheel
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -40,7 +40,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-tar
-          path: ./artifacts/app.tar.gz
+          path: ./app.tar.gz
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -52,7 +52,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./artifacts/app.tar.gz"
+          source: "./app.tar.gz"
           target: "~/deployments"
 
       # Upload wheel package to EC2
@@ -62,7 +62,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./artifacts/wheel"
+          source: "./wheel"
           target: "~/tmp"
 
       # SSH into EC2 and deploy
