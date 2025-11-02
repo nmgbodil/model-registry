@@ -76,7 +76,7 @@ jobs:
 
             # Extract updated code
             TMP_DIR="$(mktemp -d)"
-            tar -xzf ~/deployments/app.tar.gz -C "$TMP_DIR"
+            tar -xzf ~/deployments/artifacts/app.tar.gz -C "$TMP_DIR"
             sudo rsync -avz --delete \
               --exclude 'venv/' --exclude '.venv/' \
               --exclude '__pycache__/' --exclude '*.pyc' --exclude '*.log' \
@@ -84,7 +84,7 @@ jobs:
             rm -rf "$TMP_DIR"
 
             # Install/update dependencies from wheel(s)
-            /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/*.whl
+            /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/model_registry-0.1.0-py3-none-any.whl
 
             # Restart services
             sudo systemctl restart gunicorn
