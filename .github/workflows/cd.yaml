@@ -87,7 +87,7 @@ jobs:
             /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/model_registry-0.1.0-py3-none-any.whl
 
             # Restart services
-            sudo systemctl restart gunicorn
+            sudo systemctl restart model-registry
             sudo systemctl restart nginx
 
             echo "Backend deployment complete"
