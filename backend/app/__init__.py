@@ -20,7 +20,8 @@ def create_app() -> Flask:
     # CORS: allow cross-origin calls; we use X-Authorization.
     CORS(
         app,
-        resources={r"/*": {"origins": "*"}},   # permissive for now
+        #resources={r"/*": {"origins": "*"}},   # permissive for now
+        origins= "*",
         supports_credentials=False,            # required when origins="*"
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "X-Authorization", "Authorization"],
