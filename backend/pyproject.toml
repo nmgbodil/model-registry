@@ -11,7 +11,10 @@ dependencies = [
   "flask>=3.1.2",
   "flask-cors>=6.0.1",
   "types-flask-cors",
-  "gunicorn>=23.0.0"
+  "gunicorn>=23.0.0",
+  "types-flask-cors",
+  "boto3>=1.15.0",
+  "types-boto3"
 ]
 
 [project.optional-dependencies]
@@ -37,6 +40,7 @@ line_length = 88
 [tool.mypy]
 strict = true
 files = ["backend/app", "backend/tests"]
+exclude = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
