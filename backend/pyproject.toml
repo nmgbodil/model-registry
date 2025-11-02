@@ -11,6 +11,8 @@ dependencies = [
   "flask>=3.1.2",
   "flask-cors>=6.0.1",
   "types-flask-cors",
+  "gunicorn>=23.0.0"
+  "types-flask-cors",
   "boto3>=1.15.0",
   "types-boto3"
 ]
@@ -49,4 +51,5 @@ markers = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["app"]
+where = ["."]
+include = ["app*"]
