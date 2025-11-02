@@ -75,9 +75,6 @@ jobs:
           script: |
             echo "Starting backend deployment..."
 
-            # Move to backend app folder
-            cd ~/backend/app
-
             # Extract updated code
             TMP_DIR="$(mktemp -d)"; \
             tar -xzf ~/deployments/app.tar.gz -C "$TMP_DIR"; \
