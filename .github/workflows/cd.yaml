@@ -110,7 +110,7 @@ jobs:
             sudo mkdir -p /srv/model-registry/www
 
             # IMPORTANT: trailing slash on the SOURCE = copy CONTENTS, not the folder itself
-            sudo rsync -avz --delete ~/deployments/frontend_dist/ /srv/model-registry/www/
+            sudo rsync -avz --delete ~/deployments/frontend_dist/* /srv/model-registry/www/
 
             # (optional) ownership for nginx
             if id www-data >/dev/null 2>&1; then
