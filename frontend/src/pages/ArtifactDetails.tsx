@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Calendar, TrendingUp, Download, Edit, Trash2, Brain, Database, FileCode
 } from "lucide-react";
@@ -8,7 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+
 import { DefaultService } from "@/api/generated/services/DefaultService";
+import { OpenAPI } from "@/api/generated/client";
 
 type FlatArtifact = {
   id: string;
@@ -31,31 +44,28 @@ const getTypeIcon = (type: string) => {
 };
 
 async function fetchArtifactEnvelope(artifactType: string, artifactId: string) {
-  // Try your generated client first (method names can vary by generator)
   const svc = DefaultService as any;
+
+  // Prefer known codegen names
   if (typeof svc.artifactsGet === "function") {
-    // e.g. artifactsGet(type, id)
     return svc.artifactsGet(artifactType, Number(artifactId));
   }
   if (typeof svc.artifactsArtifactTypeArtifactIdGet === "function") {
-    // common name pattern from codegen
     return svc.artifactsArtifactTypeArtifactIdGet(artifactType, Number(artifactId));
   }
   if (typeof svc.artifactGet === "function") {
-    // BE CAREFUL: this might be /artifact/{id} in some clients and will 405.
-    // We only try it if the above are missing.
     try {
       return await svc.artifactGet(artifactId);
     } catch {
-      // fall through to fetch
+      // ignore and fallback to fetch
     }
   }
-  // Fallback to direct fetch against the spec route
-  const res = await fetch(`/artifacts/${artifactType}/${artifactId}`);
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`Failed to load artifact: ${res.status} ${msg}`);
-  }
+
+  // Spec fallback
+  const res = await fetch(`${OpenAPI.BASE ?? ""}/artifacts/${artifactType}/${artifactId}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`GET failed: ${res.status}`);
   return res.json();
 }
 
@@ -66,7 +76,6 @@ function normalizeEnvelopeToFlat(envelope: any): FlatArtifact {
     id: String(md.id ?? ""),
     name: String(md.name ?? ""),
     type: String(md.type ?? "model"),
-    // The current backend envelope doesn't include these; keep optional for UI:
     created_at: envelope?.created_at ?? undefined,
     description: envelope?.description ?? undefined,
     version: envelope?.version ?? undefined,
@@ -76,18 +85,115 @@ function normalizeEnvelopeToFlat(envelope: any): FlatArtifact {
 }
 
 export default function ArtifactDetails() {
-  // IMPORTANT: route must be /artifacts/:type/:id
+  // Must be routed as /artifacts/:type/:id
   const { type, id } = useParams<{ type: string; id: string }>();
   const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [draftUrl, setDraftUrl] = useState("");
 
   const { data: artifact, isLoading, isError } = useQuery<FlatArtifact>({
     queryKey: ["artifact", type, id],
     enabled: Boolean(type && id),
-    queryFn: async () => {
-      const envelope = await fetchArtifactEnvelope(type!, id!);
-      return normalizeEnvelopeToFlat(envelope);
+    queryFn: async () => normalizeEnvelopeToFlat(await fetchArtifactEnvelope(type!, id!)),
+  });
+
+  // DELETE (spec): DELETE /artifacts/{artifact_type}/{id}
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const svc = DefaultService as any;
+      if (typeof svc.artifactsDelete === "function") {
+        return svc.artifactsDelete(type!, Number(id));
+      }
+      if (typeof svc.artifactsArtifactTypeArtifactIdDelete === "function") {
+        return svc.artifactsArtifactTypeArtifactIdDelete(type!, Number(id));
+      }
+      const res = await fetch(`${OpenAPI.BASE ?? ""}/artifacts/${type}/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`DELETE failed: ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["browse"] });
+      qc.invalidateQueries({ queryKey: ["search"] });
+      navigate("/");
     },
   });
+
+  const handleDelete = () => {
+    if (!type || !id) return;
+    const ok = window.confirm("Delete this artifact? This action cannot be undone.");
+    if (ok) deleteMutation.mutate();
+  };
+
+  // DOWNLOAD (off-spec): GET /artifacts/{type}/{id}/download
+  // Let the browser handle redirect/attachment; no need to fetch blob in JS.
+  function startDownload(artifactType: string, artifactId: string, subset: "full" | "weights" | "runtime" = "full") {
+  const base = OpenAPI.BASE || "http://10.186.15.115:8000"; // ensure this is set at build time
+  const qs = subset === "full" ? "" : `?subset=${subset}`;
+  const href = `${base}/artifacts/${artifactType}/${artifactId}/download${qs}`;
+
+  const a = document.createElement("a");
+  a.href = href;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// usage
+const handleDownload = () => {
+  if (!type || !id) return;
+  startDownload(type, id, "weights"); // or "weights"
+};
+
+
+
+  // EDIT (spec): PUT /artifacts/{artifact_type}/{id}
+  const editMutation = useMutation({
+    mutationFn: async (payload: { name: string; url?: string }) => {
+      const body = {
+        metadata: { id, type, name: payload.name },
+        data: { url: payload.url ?? null },
+      };
+      const svc = DefaultService as any;
+      if (typeof svc.artifactsPut === "function") {
+        return svc.artifactsPut(type!, Number(id), body);
+      }
+      if (typeof svc.artifactsArtifactTypeArtifactIdPut === "function") {
+        return svc.artifactsArtifactTypeArtifactIdPut(type!, Number(id), body);
+      }
+      const res = await fetch(`${OpenAPI.BASE ?? ""}/artifacts/${type}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`PUT failed: ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      setIsEditing(false);
+      qc.invalidateQueries({ queryKey: ["artifact", type, id] });
+      qc.invalidateQueries({ queryKey: ["browse"] });
+      qc.invalidateQueries({ queryKey: ["search"] });
+    },
+  });
+
+  const openEdit = () => {
+    if (!artifact) return;
+    setDraftName(artifact.name ?? "");
+    setDraftUrl(artifact.url ?? "");
+    setIsEditing(true);
+  };
+  const saveEdit = () => {
+    const name = draftName.trim();
+    const url = draftUrl.trim();
+    if (!name) return alert("Name is required.");
+    editMutation.mutate({ name, url: url || undefined });
+  };
 
   if (isLoading) {
     return (
@@ -228,20 +334,33 @@ export default function ArtifactDetails() {
                 <CardTitle>Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button className="w-full" disabled>
+                <Button className="w-full" onClick={handleDownload}>
                   <Download className="mr-2 h-4 w-4" />
                   Download
                 </Button>
-                <Button variant="outline" className="w-full" disabled>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={openEdit}
+                  disabled={!artifact}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Details
                 </Button>
-                <Button variant="destructive" className="w-full" disabled>
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={handleDelete}
+                  disabled={deleteMutation.isPending}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  {deleteMutation.isPending ? "Deleting..." : "Delete"}
                 </Button>
+
                 <p className="text-xs text-muted-foreground pt-2">
-                  Actions will be enabled once backend integration is complete
+                  Download uses a helper endpoint (HF snapshot/zip or redirect). Edit/ Delete use spec endpoints.
                 </p>
               </CardContent>
             </Card>
@@ -290,6 +409,48 @@ export default function ArtifactDetails() {
           </div>
         </div>
       </div>
+
+      {/* Edit dialog */}
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Artifact Details</DialogTitle>
+            <DialogDescription>
+              Update the artifact name (required) and optional source URL. This calls the spec PUT endpoint.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="name">Name<span className="text-destructive">*</span></Label>
+              <Input
+                id="name"
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                placeholder="artifact-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="url">Source URL (optional)</Label>
+              <Input
+                id="url"
+                value={draftUrl}
+                onChange={(e) => setDraftUrl(e.target.value)}
+                placeholder="https://huggingface.co/owner/repo or https://..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditing(false)} disabled={editMutation.isPending}>
+              Cancel
+            </Button>
+            <Button onClick={saveEdit} disabled={editMutation.isPending}>
+              {editMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
