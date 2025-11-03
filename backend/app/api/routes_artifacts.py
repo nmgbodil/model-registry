@@ -245,8 +245,8 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
         name = md.get("name")
         if isinstance(name, str) and name.strip():
-            # ensure hyphens instead of underscores for spaces
-            normalized = re.sub(r"\s+", "-", name.strip())
+            # normalized = re.sub(r"\s+", "-", name.strip())
+            normalized = re.sub(r"\s+", "_", name.strip())
             a.filename = secure_filename(normalized)
 
         url = data.get("url")
