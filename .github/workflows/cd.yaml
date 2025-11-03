@@ -106,10 +106,13 @@ jobs:
             # Install/update dependencies from wheel(s)
             /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/model_registry-0.1.0-py3-none-any.whl
 
-            # --- Frontend deploy (source 'frontend' in repo -> webroot '/srv/model-registry/www') ---
+            # --- Frontend deploy ---
             sudo mkdir -p /srv/model-registry/www
+
+            # IMPORTANT: trailing slash on the SOURCE = copy CONTENTS, not the folder itself
             sudo rsync -avz --delete ~/deployments/frontend_dist/ /srv/model-registry/www/
-            # ownership for nginx (Ubuntu uses www-data; AL2 often uses nginx)
+
+            # (optional) ownership for nginx
             if id www-data >/dev/null 2>&1; then
               sudo chown -R www-data:www-data /srv/model-registry/www;
             else
