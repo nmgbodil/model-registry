@@ -44,6 +44,16 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
+      
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: ./frontend_dist
+          run-id: ${{ github.event.workflow_run.id }}
+          repository: ${{ github.repository }}
+          github-token: ${{ github.token }}
+
 
       # 3) Upload artifacts to EC2
       - name: Upload tar package to EC2
@@ -63,6 +73,16 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "./wheel"                   # uploads the folder with .whl(s)
           target: "~/tmp"
+      
+      - name: Upload frontend to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "./frontend_dist/*"
+          target: "~/deployments/frontend_dist"
+
 
       # 4) SSH into EC2 and deploy
       - name: Deploy to EC2
@@ -86,8 +106,19 @@ jobs:
             # Install/update dependencies from wheel(s)
             /srv/model-registry/backend/venv/bin/pip install --no-cache-dir --upgrade ~/tmp/wheel/model_registry-0.1.0-py3-none-any.whl
 
+            # --- Frontend deploy (source 'frontend' in repo -> webroot '/srv/model-registry/www') ---
+            sudo mkdir -p /srv/model-registry/www
+            sudo rsync -avz --delete ~/deployments/frontend_dist/ /srv/model-registry/www/
+            # ownership for nginx (Ubuntu uses www-data; AL2 often uses nginx)
+            if id www-data >/dev/null 2>&1; then
+              sudo chown -R www-data:www-data /srv/model-registry/www;
+            else
+              sudo chown -R nginx:nginx /srv/model-registry/www;
+            fi
+
             # Restart services
             sudo systemctl restart model-registry
+            sudo nginx -t
             sudo systemctl restart nginx
 
             echo "Backend deployment complete"
