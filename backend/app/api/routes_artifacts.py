@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, Tuple, cast
@@ -244,11 +245,13 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
         name = md.get("name")
         if isinstance(name, str) and name.strip():
-            a.filename = secure_filename(name)
+            # ensure hyphens instead of underscores for spaces
+            normalized = re.sub(r"\s+", "-", name.strip())
+            a.filename = secure_filename(normalized)
 
         url = data.get("url")
         if isinstance(url, str) and url.strip():
-            a.stored_path = url  # treat as source URL
+            a.stored_path = url
 
         s.flush()
         return jsonify({"message": "updated"}), HTTPStatus.OK
