@@ -1,10 +1,10 @@
-# backend/app/api/routes_artifacts.py — API routes aligned to Phase 2 spec (clean).
+"""API routes for artifact management."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 from urllib.parse import urlparse
 
 from flask import Blueprint, jsonify, make_response, request
@@ -16,7 +16,8 @@ from ..models import Artifact
 
 # Optional Hugging Face support (enrichment & snapshot)
 try:
-    from huggingface_hub import HfApi, snapshot_download  # type: ignore
+    from huggingface_hub import HfApi, snapshot_download
+
     HF_AVAILABLE = True
 except Exception:
     HF_AVAILABLE = False
@@ -30,24 +31,12 @@ except Exception:
 bp_artifacts = Blueprint("artifacts", __name__, url_prefix="/artifacts")
 bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
 
-
 # ===== Helpers =================================================================
 
-"""
+
 def _require_auth() -> Optional[ResponseReturnValue]:
-    Spec requires X-Authorization on artifact endpoints (baseline & non-baseline here).
-    Keep it simple: accept any non-empty header; tighten as needed.
-    token = request.headers.get("X-Authorization")
-    if not token:
-        return jsonify({"error": "missing X-Authorization"}), HTTPStatus.FORBIDDEN
-    # Dev-only strictness example:
-    # if token != "dev-token":
-    #     return jsonify({"error": "invalid token"}), HTTPStatus.FORBIDDEN
-    return None"""
-
-def _require_auth():
+    """If you wire up auth, return a Flask-style response or None.For now, allow all."""
     return None
-
 
 
 def _iso(dt: Any) -> Optional[str]:
@@ -59,7 +48,7 @@ def _iso(dt: Any) -> Optional[str]:
 
 
 def _to_metadata(a: Artifact) -> Dict[str, Any]:
-    """ArtifactMetadata { name, id, type }."""
+    """A ArtifactMetadata { name, id, type }."""
     art_type = getattr(a, "type", None) or "model"
     return {"name": a.filename, "id": str(a.id), "type": art_type}
 
@@ -80,8 +69,9 @@ def _validate_http_url(url: str) -> bool:
 
 
 def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
-    """
-    Return (is_hf, kind, repo_id) where kind ∈ {"model","dataset","space","unknown"}.
+    """Return (is_hf, kind, repo_id) where kind.
+
+    ∈ {"model","dataset","space","unknown"}.
     """
     try:
         p = urlparse(url)
@@ -106,11 +96,13 @@ def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
         return (True, "unknown", None)
 
 
-def _compute_duplicate(s, artifact_type: str, name: str, url: str) -> Optional[Artifact]:
-    """
-    Simple duplicate heuristic:
-      - same stored_path (URL) and same type
-      - OR same name and same type (conservative)
+def _compute_duplicate(
+    s: Any, artifact_type: str, name: str, url: str
+) -> Optional[Artifact]:
+    """Simple duplicate heuristic.
+
+    same stored_path (URL) and same type
+    OR same name and same type (conservative)
     """
     q = s.query(Artifact)
     if hasattr(Artifact, "type"):
@@ -119,15 +111,16 @@ def _compute_duplicate(s, artifact_type: str, name: str, url: str) -> Optional[A
         q.filter(Artifact.stored_path == url).first()
         or q.filter(Artifact.filename == name).first()
     )
-    return dup
+    return cast(Optional[Artifact], dup)
 
 
 # ===== Spec: POST /artifacts (ArtifactsList) ===================================
 
+
 @bp_artifacts.post("")
 def artifacts_list() -> ResponseReturnValue:
-    """
-    Body: ArtifactQuery[] (e.g., [{ "name": "*" }])
+    """Body: ArtifactQuery[] (e.g., [{ "name": "*" }]).
+
     Query: ?offset= (string). Also tolerates 'offset' request header (legacy).
     Return: 200 Array<ArtifactMetadata>, and response header 'offset' with next offset.
     """
@@ -137,14 +130,15 @@ def artifacts_list() -> ResponseReturnValue:
         return auth_err
 
     # 1) Try normal JSON decode
-    body = request.get_json(silent=True)
+    body: Any = request.get_json(silent=True)
 
-    # 2) Fallback to raw parse for odd content-types/charsets/quoting (e.g., PowerShell)
+    # 2) Fallback to raw parse for odd content-types/charsets/quoting
     if body is None:
         raw = request.get_data(cache=False, as_text=True)
         if raw:
             try:
                 import json
+
                 body = json.loads(raw)
             except Exception:
                 body = None
@@ -181,9 +175,9 @@ def artifacts_list() -> ResponseReturnValue:
     for q in body:
         if not isinstance(q, dict) or "name" not in q:
             return jsonify({"error": "invalid ArtifactQuery"}), HTTPStatus.BAD_REQUEST
-        names.append(q["name"])
+        names.append(str(q["name"]))
         for t in q.get("types") or []:
-            types.add(t)
+            types.add(str(t))
 
     with get_session() as s:
         query = s.query(Artifact).order_by(Artifact.id.desc())
@@ -197,7 +191,7 @@ def artifacts_list() -> ResponseReturnValue:
             query = query.filter(Artifact.type.in_(list(types)))
 
         rows = query.offset(offset).limit(100).all()
-        items = [_to_metadata(a) for a in rows]
+        items: List[Dict[str, Any]] = [_to_metadata(a) for a in rows]
 
     resp = make_response(jsonify(items), HTTPStatus.OK)
     resp.headers["offset"] = str(offset + len(items))
@@ -206,9 +200,10 @@ def artifacts_list() -> ResponseReturnValue:
 
 # ===== Spec: GET/PUT/DELETE /artifacts/{artifact_type}/{id} ====================
 
+
 @bp_artifacts.get("/<artifact_type>/<int:artifact_id>")
 def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
-    # Auth required
+    """Get artifact envelope by type and ID."""
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
@@ -225,7 +220,7 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")
 def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
-    # Auth required
+    """Update artifact contents by type and ID."""
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
@@ -235,9 +230,9 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     Requires metadata.id == path id and metadata.type == path type.
     Updates filename from metadata.name and stored URL from data.url.
     """
-    body = request.get_json(force=True, silent=True) or {}
-    md = body.get("metadata") or {}
-    data = body.get("data") or {}
+    body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
+    md = cast(Dict[str, Any], body.get("metadata") or {})
+    data = cast(Dict[str, Any], body.get("data") or {})
 
     if str(md.get("id")) != str(artifact_id) or md.get("type") != artifact_type:
         return jsonify({"error": "name/id/type mismatch"}), HTTPStatus.BAD_REQUEST
@@ -261,7 +256,7 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 @bp_artifacts.delete("/<artifact_type>/<int:artifact_id>")
 def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
-    # Auth required
+    """Delete artifact by type and ID."""
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
@@ -281,28 +276,32 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
 
 # ===== Spec: POST /artifact/{artifact_type} (ArtifactCreate) ===================
 
+
 @bp_artifact.post("/<artifact_type>")
 def artifact_create(artifact_type: str) -> ResponseReturnValue:
-    """
-    Body: { "url": "https://..." }
+    """Body: { "url": "https://..." }.
+
     Optional: ?download=1 to snapshot HF repo locally (if huggingface_hub installed).
     Return: 201 { metadata, data }
     Errors: 400 malformed, 403 missing auth, 409 duplicate
     """
-    # Auth required
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
 
-    body = request.get_json(force=True, silent=True) or {}
-    url = body.get("url")
-    if not isinstance(url, str) or not url.strip():
+    body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
+    url_raw = body.get("url")
+    if not isinstance(url_raw, str) or not url_raw.strip():
         return jsonify({"error": "missing url"}), HTTPStatus.BAD_REQUEST
-    url = url.strip()
+    url = url_raw.strip()
     if not _validate_http_url(url):
         return jsonify({"error": "invalid url"}), HTTPStatus.BAD_REQUEST
 
-    do_download = request.args.get("download", "0").lower() in {"1", "true", "yes"}
+    do_download = (request.args.get("download", "0") or "0").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
     # derive a base name from URL
     derived_name = secure_filename(url.rstrip("/").split("/")[-1] or "artifact")
@@ -314,21 +313,29 @@ def artifact_create(artifact_type: str) -> ResponseReturnValue:
     if is_hf and HF_AVAILABLE and repo_id:
         try:
             api = HfApi()
-            if hf_kind == "dataset" or artifact_type == "dataset":
-                info = api.dataset_info(repo_id)  # type: ignore
-            else:
-                info = api.model_info(repo_id)  # type: ignore
 
-            # name: repo tail
+            # name: repo tail (works for both models & datasets)
             derived_name = secure_filename(repo_id.split("/")[-1])
 
-            # size: sum known file sizes (siblings)
-            siblings = getattr(info, "siblings", None)
-            if siblings:
-                size_bytes = sum((getattr(f, "size", 0) or 0) for f in siblings)
+            # Collect siblings and sha without mixing types
+            siblings = None
+            checksum_sha256_local: Optional[str] = None
 
-            # sha: some infos expose .sha
-            checksum_sha256 = getattr(info, "sha", None)
+            if hf_kind == "dataset" or artifact_type == "dataset":
+                ds_info = api.dataset_info(repo_id)
+                siblings = getattr(ds_info, "siblings", None)
+                checksum_sha256_local = getattr(ds_info, "sha", None)
+            else:
+                mdl_info = api.model_info(repo_id)
+                siblings = getattr(mdl_info, "siblings", None)
+                checksum_sha256_local = getattr(mdl_info, "sha", None)
+
+            if siblings:
+                # sum known file sizes (guard against None)
+                size_bytes = sum(int(getattr(f, "size", 0) or 0) for f in siblings)
+
+            if checksum_sha256_local:
+                checksum_sha256 = checksum_sha256_local
 
             # Optional local snapshot
             if do_download:
@@ -362,20 +369,20 @@ def artifact_create(artifact_type: str) -> ResponseReturnValue:
 
 # ===== Spec: POST /artifact/byRegEx (ArtifactByRegExGet) =======================
 
+
 @bp_artifact.post("/byRegEx")
 def artifact_by_regex() -> ResponseReturnValue:
-    # Auth required
+    """Body: { "regex": ".*model.*" }."""
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
 
-    body = request.get_json(force=True, silent=True) or {}
-    regex = body.get("regex")
-    if not isinstance(regex, str) or not regex.strip():
+    body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
+    regex_val = body.get("regex")
+    if not isinstance(regex_val, str) or not regex_val.strip():
         return jsonify({"error": "missing regex"}), HTTPStatus.BAD_REQUEST
 
-    # Simple contains search (baseline): translate common .*foo.* to %foo%
-    token = regex.replace(".*", "").strip("%")
+    token = regex_val.replace(".*", "").strip("%")
     with get_session() as s:
         rows = (
             s.query(Artifact)
@@ -384,14 +391,16 @@ def artifact_by_regex() -> ResponseReturnValue:
             .limit(200)
             .all()
         )
-        return jsonify([_to_metadata(a) for a in rows]), HTTPStatus.OK
+        items: List[Dict[str, Any]] = [_to_metadata(a) for a in rows]
+        return jsonify(items), HTTPStatus.OK
 
 
 # ===== Spec: GET /artifact/byName/{name} (ArtifactByNameGet) ===================
 
+
 @bp_artifact.get("/byName/<name>")
 def artifact_by_name(name: str) -> ResponseReturnValue:
-    # Auth required
+    """Get artifacts by exact name match."""
     auth_err = _require_auth()
     if auth_err is not None:
         return auth_err
@@ -403,7 +412,7 @@ def artifact_by_name(name: str) -> ResponseReturnValue:
             .order_by(Artifact.id.desc())
             .all()
         )
-        items = [_to_metadata(a) for a in rows]
+        items: List[Dict[str, Any]] = [_to_metadata(a) for a in rows]
         if not items:
             return jsonify({"error": "no such artifact"}), HTTPStatus.NOT_FOUND
         return jsonify(items), HTTPStatus.OK

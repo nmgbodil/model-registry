@@ -24,7 +24,7 @@ class Artifact(Base):
     checksum_sha256: Mapped[str | None] = mapped_column(
         String,
         nullable=True,
-        default="",           # Python-side default
+        default="",  # Python-side default
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()

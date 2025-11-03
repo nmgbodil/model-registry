@@ -12,6 +12,10 @@ dependencies = [
   "flask-cors>=6.0.1",
   "types-Flask-Cors",
   "sqlalchemy>=2.0",
+  "requests>=2.32,<3",
+  "huggingface_hub>=0.24"
+
+
 ]
 
 [project.optional-dependencies]

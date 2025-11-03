@@ -1,4 +1,3 @@
-# backend/app/api/routes_health.py
 """Health endpoints aligned with the Phase 2 spec."""
 
 from __future__ import annotations
@@ -19,6 +18,7 @@ bp: Final = Blueprint("health", __name__)
 # ──────────────────────────────────────────────────────────────────────────────
 @bp.get("/health")
 def health() -> ResponseReturnValue:
+    """Health check endpoint."""
     # Minimal body to keep clients happy, but spec only requires 200.
     return jsonify({"status": "ok"}), HTTPStatus.OK
 
@@ -32,6 +32,7 @@ def health() -> ResponseReturnValue:
 # ──────────────────────────────────────────────────────────────────────────────
 @bp.get("/health/components")
 def health_components() -> ResponseReturnValue:
+    """Component health endpoint (stub)."""
     # windowMinutes parsing with bounds per spec
     try:
         window_minutes = int(request.args.get("windowMinutes", "60"))
