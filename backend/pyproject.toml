@@ -10,12 +10,13 @@ description = "Trustworthy model registry backend and workers"
 dependencies = [
   "flask>=3.1.2",
   "flask-cors>=6.0.1",
-  "types-Flask-Cors",
   "sqlalchemy>=2.0",
   "requests>=2.32,<3",
-  "huggingface_hub>=0.24"
-
-
+  "huggingface_hub>=0.24",
+  "gunicorn>=23.0.0",
+  "types-flask-cors",
+  "boto3>=1.15.0",
+  "types-boto3"
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,7 @@ line_length = 88
 [tool.mypy]
 strict = true
 files = ["backend/app", "backend/tests"]
+exclude = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -51,4 +53,5 @@ markers = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["app"]
+where = ["."]
+include = ["app*"]
