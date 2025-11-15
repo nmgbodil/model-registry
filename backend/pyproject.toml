@@ -14,7 +14,10 @@ dependencies = [
   "gunicorn>=23.0.0",
   "types-flask-cors",
   "boto3>=1.15.0",
-  "types-boto3"
+  "types-boto3",
+  "SQLAlchemy>=2.0.44",
+  "python-dotenv>=1.2.1",
+  "psycopg2-binary>=2.9.11"
 ]
 
 [project.optional-dependencies]
