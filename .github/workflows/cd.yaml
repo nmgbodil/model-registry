@@ -78,14 +78,22 @@ jobs:
         run: |
           ls -la ./artifacts
       
+      - name: Ensure target dir exists
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: mkdir -p ~/deployments/artifacts/frontend-dist
+
       - name: Upload frontend to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./artifacts/frontend-dist"
-          target: "~/deployments"
+          source: "./artifacts/frontend-dist/**"
+          target: "~/deployments/artifacts/frontend-dist"
 
 
       # 4) SSH into EC2 and deploy
