@@ -74,6 +74,10 @@ jobs:
           source: "./wheel"                   # uploads the folder with .whl(s)
           target: "~/tmp"
       
+      - name: check files in artifacts folder
+        run: |
+          ls -la ./artifacts
+      
       - name: Upload frontend to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
