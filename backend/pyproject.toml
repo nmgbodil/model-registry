@@ -10,7 +10,9 @@ description = "Trustworthy model registry backend and workers"
 dependencies = [
   "flask>=3.1.2",
   "flask-cors>=6.0.1",
-  "types-flask-cors",
+  "sqlalchemy>=2.0",
+  "requests>=2.32,<3",
+  "huggingface_hub>=0.24",
   "gunicorn>=23.0.0",
   "types-flask-cors",
   "boto3>=1.15.0",
