@@ -70,6 +70,7 @@ class Artifact(Base):
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     manifest_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     parent_artifact_id: Mapped[Optional[int]] = mapped_column(
         Integer,
