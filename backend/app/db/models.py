@@ -65,6 +65,7 @@ class Artifact(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False, default="model")
     version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     license: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
