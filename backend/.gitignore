@@ -216,3 +216,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 notes.txt
+**/inspect_schema.py
+**/dev.db

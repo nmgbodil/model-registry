@@ -10,23 +10,44 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 
 load_dotenv()
 
-DB_USER = os.environ.get("DB_USER")
-DB_PASSWORD = os.environ.get("DB_PASSWORD")
-DB_HOST = os.environ.get("DB_HOST")
-DB_PORT = os.environ.get("DB_PORT")
-DB_NAME = os.environ.get("DB_NAME")
-DB_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+APP_ENV = os.environ.get("APP_ENV", "dev")
+
+database_url = os.environ.get("DATABASE_URL")
+
+if not database_url:
+    if APP_ENV in ("dev", "test"):
+        if APP_ENV == "dev":
+            database_url = "sqlite:///:memory:"
+        else:
+            database_url = "sqlite:///dev.db"
+    else:
+        # Fallback: build Postgres URL from parts (for prod)
+        DB_USER = os.environ["DB_USER"]
+        DB_PASSWORD = os.environ["DB_PASSWORD"]
+        DB_HOST = os.environ["DB_HOST"]
+        DB_PORT = os.environ.get("DB_PORT", "5432")
+        DB_NAME = os.environ["DB_NAME"]
+        database_url = (
+            "postgresql+psycopg2://"
+            f"{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        )
+
+# Common args for database engine
+engine_kwargs: dict[str, Any] = {"future": True}
+
+if database_url.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    engine_kwargs.update(
+        pool_size=5,  # t3.micro: keep small
+        max_overflow=5,
+        pool_pre_ping=True,  # drop dead conns
+        pool_recycle=1800,  # avoid stale conns (secs)
+        execution_options={"stream_results": True},
+    )
 
 # One engine per Gunicorn worker (module-level)
-engine: Engine = create_engine(
-    DB_URL,
-    pool_size=5,  # t3.micro: keep small
-    max_overflow=5,
-    pool_pre_ping=True,  # drop dead conns
-    pool_recycle=1800,  # avoid stale conns (secs)
-    execution_options={"stream_results": True},
-    future=True,
-)
+engine: Engine = create_engine(database_url, **engine_kwargs)
 
 
 def fetch_one(

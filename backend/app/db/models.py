@@ -39,8 +39,8 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)
-    username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    username: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", native_enum=True),
@@ -64,7 +64,7 @@ class Artifact(Base):
     __tablename__ = "artifacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     license: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -79,7 +79,7 @@ class Artifact(Base):
     )
 
     created_by: Mapped[Optional[str]] = mapped_column(
-        String,
+        String(36),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -105,10 +105,8 @@ class Artifact(Base):
         cascade="all, delete-orphan",
     )
 
-    ratings: Mapped["Rating"] = relationship(
-        "Rating",
-        back_populates="artifact",
-        cascade="all, delete-orphan",
+    rating: Mapped["Rating"] = relationship(
+        "Rating", back_populates="artifact", cascade="all, delete-orphan", uselist=False
     )
 
 
@@ -150,7 +148,6 @@ class Rating(Base):
     treescore_latency: Mapped[float] = mapped_column(Float, nullable=False)
     net_score: Mapped[float] = mapped_column(Float, nullable=False)
     net_score_latency: Mapped[float] = mapped_column(Float, nullable=False)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -158,5 +155,5 @@ class Rating(Base):
 
     artifact: Mapped[Artifact] = relationship(
         "Artifact",
-        back_populates="ratings",
+        back_populates="rating",
     )

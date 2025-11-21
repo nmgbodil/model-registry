@@ -1,7 +1,16 @@
 """This module initializes the Flask application for the backend."""
 
+import os
+
+from dotenv import load_dotenv
 from flask import Flask
 from flask_cors import CORS
+
+from app.db.session import init_local_db
+
+load_dotenv()
+
+APP_ENV = os.environ.get("APP_ENV")
 
 
 def create_app() -> Flask:
@@ -30,5 +39,7 @@ def create_app() -> Flask:
 
 
 if __name__ == "__main__":
+    if APP_ENV in ("dev", "test"):
+        init_local_db()
     app = create_app()
     app.run(debug=True, port=5001, host="0.0.0.0")
