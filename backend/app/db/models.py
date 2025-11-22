@@ -73,11 +73,11 @@ class Artifact(Base):
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
-    dataset_id: Mapped[Optional[str]] = mapped_column(
+    dataset_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
     )
 
-    code_id: Mapped[Optional[str]] = mapped_column(
+    code_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
     )
 
