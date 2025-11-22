@@ -73,6 +73,14 @@ class Artifact(Base):
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
+    dataset_id: Mapped[Optional[str]] = mapped_column(
+        Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
+    )
+
+    code_id: Mapped[Optional[str]] = mapped_column(
+        Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
+    )
+
     parent_artifact_id: Mapped[Optional[int]] = mapped_column(
         Integer,
         ForeignKey("artifacts.id", ondelete="SET NULL"),
@@ -96,8 +104,17 @@ class Artifact(Base):
 
     parent_artifact: Mapped[Optional["Artifact"]] = relationship(
         "Artifact",
-        remote_side="Artifact.id",
+        foreign_keys=[parent_artifact_id],
+        remote_side=[id],
         back_populates="children",
+    )
+
+    dataset: Mapped[Optional["Artifact"]] = relationship(
+        "Artifact", foreign_keys=[dataset_id], remote_side=[id]
+    )
+
+    code: Mapped[Optional["Artifact"]] = relationship(
+        "Artifact", foreign_keys=[code_id], remote_side=[id]
     )
 
     children: Mapped[List["Artifact"]] = relationship(
