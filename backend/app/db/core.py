@@ -15,7 +15,7 @@ APP_ENV = os.environ.get("APP_ENV", "dev")
 database_url = os.environ.get("DATABASE_URL")
 
 if not database_url:
-    if APP_ENV in ("dev", "test"):
+    if APP_ENV in {"dev", "test"}:
         if APP_ENV == "dev":
             database_url = "sqlite:///:memory:"
         else:
@@ -77,8 +77,12 @@ def execute(sql: str, params: Optional[Mapping[str, Any]] = None) -> int:
 
 def execute_many(sql: str, seq_of_params: Iterable[Mapping[str, Any]]) -> int:
     """Run the same statement for each parameter set; returns total rows affected."""
+    params = list(seq_of_params)
+    if not params:
+        return 0
+
     with engine.begin() as conn:
-        res = conn.execute(text(sql), list(seq_of_params))
+        res = conn.execute(text(sql), params)
         return res.rowcount
 
 
