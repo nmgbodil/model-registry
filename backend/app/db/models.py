@@ -182,7 +182,6 @@ class Rating(Base):
     treescore_latency: Mapped[float] = mapped_column(Float, nullable=False)
     net_score: Mapped[float] = mapped_column(Float, nullable=False)
     net_score_latency: Mapped[float] = mapped_column(Float, nullable=False)
-    category: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
