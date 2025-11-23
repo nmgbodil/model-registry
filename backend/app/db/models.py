@@ -58,6 +58,14 @@ class User(Base):
     )
 
 
+class ArtifactStatus(PyEnum):
+    """Lifecycle status for an artifact after rating/evaluation."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+
 class Artifact(Base):
     """Versioned artifact metadata stored in the registry."""
 
@@ -72,6 +80,14 @@ class Artifact(Base):
     manifest_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # NEW: current status of the artifact in your registry
+    status: Mapped[ArtifactStatus] = mapped_column(
+        Enum(ArtifactStatus, name="artifact_status", native_enum=True),
+        nullable=False,
+        default=ArtifactStatus.PENDING,
+    )
 
     dataset_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
