@@ -136,6 +136,7 @@ class Artifact(Base):
     children: Mapped[List["Artifact"]] = relationship(
         "Artifact",
         back_populates="parent_artifact",
+        foreign_keys=[parent_artifact_id],
         cascade="all, delete-orphan",
     )
 
@@ -155,6 +156,7 @@ class Rating(Base):
         ForeignKey("artifacts.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # TODO: Make all scores and latencies nullable and return 500 in /rate if null
     dataset_quality: Mapped[float] = mapped_column(Float, nullable=False)
     dataset_quality_latency: Mapped[float] = mapped_column(Float, nullable=False)
     dataset_and_code_score: Mapped[float] = mapped_column(Float, nullable=False)

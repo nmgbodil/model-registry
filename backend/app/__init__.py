@@ -1,16 +1,9 @@
 """This module initializes the Flask application for the backend."""
 
-import os
-
-from dotenv import load_dotenv
-from flask import Flask
+from flask import Blueprint, Flask
 from flask_cors import CORS
 
-from app.db.session import init_local_db
-
-load_dotenv()
-
-APP_ENV = os.environ.get("APP_ENV")
+from app.api.ratings import bp_ratings
 
 
 def create_app() -> Flask:
@@ -26,7 +19,14 @@ def create_app() -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     CORS(app)
 
-    @app.get("/")
+    bp_master = Blueprint(
+        "master", __name__, url_prefix="/api"
+    )  # Blueprint for api prefix
+
+    # Register new blueprints under bp_master
+    bp_master.register_blueprint(bp_ratings)
+
+    @bp_master.get("/")
     def hello() -> str:
         """A simple route that returns a welcome message.
 
@@ -35,11 +35,6 @@ def create_app() -> Flask:
         """
         return "Hello World, welcome to Model Registry backend!"
 
+    app.register_blueprint(bp_master)
+
     return app
-
-
-if __name__ == "__main__":
-    if APP_ENV in ("dev", "test"):
-        init_local_db()
-    app = create_app()
-    app.run(debug=True, port=5001, host="0.0.0.0")

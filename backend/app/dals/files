@@ -1,5 +1,0 @@
-This is a dummy file. Remove during development
-
-This folder is meant to define different functionalities for interacting with the db
-
-e.g., def check_model_exists_by_id()

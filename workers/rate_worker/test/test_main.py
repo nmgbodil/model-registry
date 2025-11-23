@@ -1,19 +1,19 @@
 """Tests for main.py module"""
+import pytest
+import tempfile
 import os
 import sys
-import tempfile
-from io import StringIO
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
-
-import pytest
 import requests
+from io import StringIO
+from unittest.mock import patch, Mock
+from pathlib import Path
+
 from src.main import (
-    calculate_scores,
-    main,
-    parseUrlFile,
     validate_github_token,
     validate_log_file,
+    parseUrlFile,
+    calculate_scores,
+    main,
 )
 from src.url import Url, UrlCategory, UrlSet
 
@@ -208,32 +208,22 @@ class TestCalculateScores:
             details={"name": "test-model", "downloads": 1000}
         )
 
-        urlsets = [UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL))]
+        urlset = UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL))
 
-        with patch("builtins.open", create=True) as mock_open:
-            mock_file = MagicMock()
-            mock_open.return_value.__enter__.return_value = mock_file
-
-            calculate_scores(urlsets)
-
-            # Verify file was opened for writing - cannot test because we are using stdout for output
-            # mock_open.assert_called_once_with("scores.ndjson", "w")
+        result = calculate_scores(urlset)
+        assert result["category"] == "MODEL"
+        assert result["net_score"] == round(mock_score.return_value.details.get("net_score", 0.0), 2)
+        assert result["name"] == "test-model"
 
     @patch("src.main.score_url")
     def test_calculate_scores_invalid_urls(self, mock_score):
         """Test calculate_scores with invalid URLs"""
-        urls = [
-            UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID)),
-        ]
+        urlset = UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID))
 
-        with patch("builtins.open", create=True) as mock_open:
-            mock_file = MagicMock()
-            mock_open.return_value.__enter__.return_value = mock_file
-
-            calculate_scores(urls)
-
-            # # Should still write to file
-            # mock_open.assert_called_once()
+        result = calculate_scores(urlset)
+        assert result["category"] == "INVALID"
+        assert result["net_score"] == 0.0
+        assert "error" in result
 
     @patch("src.main.score_url")
     def test_calculate_scores_mixed_urls(self, mock_score):
@@ -248,16 +238,14 @@ class TestCalculateScores:
             details={"name": "test"}
         )
 
-        urls = [
-            UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL)),
-            UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID)),
-        ]
+        valid_urlset = UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL))
+        invalid_urlset = UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID))
 
-        with patch("builtins.open", create=True) as mock_open:
-            mock_file = MagicMock()
-            mock_open.return_value.__enter__.return_value = mock_file
+        valid_result = calculate_scores(valid_urlset)
+        invalid_result = calculate_scores(invalid_urlset)
 
-            calculate_scores(urls)
+        assert valid_result["category"] == "MODEL"
+        assert invalid_result["category"] == "INVALID"
 
 class TestMain:
     """Tests for main function"""
@@ -272,8 +260,9 @@ class TestMain:
         mock_log.return_value = True
         mock_token.return_value = True
         mock_parse.return_value = [
-            Url("https://huggingface.co/model", UrlCategory.MODEL)
+            UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL)),
         ]
+        mock_calc.return_value = {"category": "MODEL", "name": "test-model", "net_score": 1.0}
 
         with patch.object(sys, "argv", ["prog", "test.txt"]):
             result = main()
