@@ -47,9 +47,11 @@ def test_root_route_returns_hello_message(client: testing.FlaskClient) -> None:
     Args:
         client (FlaskClient): The test client for the Flask application.
     """
-    resp = client.get("/")
+    resp = client.get("/api/")
     assert resp.status_code == 200
-    assert resp.data == b"Hello World, welcome to Model Registry backend!"
+    assert (
+        resp.get_data(as_text=True) == "Hello World, welcome to Model Registry backend!"
+    )
 
 
 def test_cors_header_present_on_simple_get(client: testing.FlaskClient) -> None:
@@ -58,6 +60,6 @@ def test_cors_header_present_on_simple_get(client: testing.FlaskClient) -> None:
     Args:
         client (FlaskClient): The test client for the Flask application.
     """
-    resp = client.get("/")
+    resp = client.get("/api/")
     assert resp.status_code == 200
     assert resp.headers.get("Access-Control-Allow-Origin") == "*"
