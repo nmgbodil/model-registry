@@ -1,35 +1,32 @@
-"""Tests for main.py module"""
-import pytest
-import tempfile
+"""Tests for main.py module."""
+
 import os
 import sys
-import requests
-from io import StringIO
-from unittest.mock import patch, Mock
-from pathlib import Path
+import tempfile
+from unittest.mock import Mock, patch
 
 from src.main import (
-    validate_github_token,
-    validate_log_file,
-    parseUrlFile,
     calculate_scores,
     main,
+    parseUrlFile,
+    validate_github_token,
+    validate_log_file,
 )
 from src.url import Url, UrlCategory, UrlSet
 
 
 class TestValidateGithubToken:
-    """Tests for GitHub token validation"""
+    """Tests for GitHub token validation."""
 
     @patch.dict(os.environ, {}, clear=True)
     def test_no_token_provided(self):
-        """Test that missing token returns True (rate-limited access)"""
+        """Test that missing token returns True (rate-limited access)."""
         assert validate_github_token() is True
 
     @patch("src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "valid_token"})
     def test_valid_token(self, mock_get):
-        """Test that valid token returns True"""
+        """Test that valid token returns True."""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_get.return_value = mock_response
@@ -39,7 +36,7 @@ class TestValidateGithubToken:
     @patch("src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "invalid_token"})
     def test_invalid_token(self, mock_get):
-        """Test that invalid token returns False"""
+        """Test that invalid token returns False."""
         mock_response = Mock()
         mock_response.status_code = 401
         mock_get.return_value = mock_response
@@ -49,7 +46,7 @@ class TestValidateGithubToken:
     @patch("src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "token"})
     def test_token_validation_network_error(self, mock_get):
-        """Test that network errors don't block execution"""
+        """Test that network errors don't block execution."""
         mock_get.side_effect = Exception("Network error")
 
         assert validate_github_token() is True
@@ -57,7 +54,7 @@ class TestValidateGithubToken:
     @patch("src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "token"})
     def test_token_validation_other_status(self, mock_get):
-        """Test that other status codes allow continuation"""
+        """Test that other status codes allow continuation."""
         mock_response = Mock()
         mock_response.status_code = 500
         mock_get.return_value = mock_response
@@ -66,23 +63,23 @@ class TestValidateGithubToken:
 
 
 class TestValidateLogFile:
-    """Tests for log file validation"""
+    """Tests for log file validation."""
 
     @patch.dict(os.environ, {}, clear=True)
     def test_no_log_file_provided(self):
-        """Test that missing log file returns True"""
+        """Test that missing log file returns True."""
         assert validate_log_file() is False
 
     def test_valid_log_file_path(self):
-        """Test that valid log file path returns True"""
+        """Test that valid log file path returns True."""
         with tempfile.TemporaryDirectory() as tmpdir:
             log_file = os.path.join(tmpdir, "test.log")
             with patch.dict(os.environ, {"LOG_FILE": log_file}):
-                assert validate_log_file() is False # Because the file doesn't exist
+                assert validate_log_file() is False  # Because the file doesn't exist
                 assert not os.path.exists(log_file)
 
     def test_log_file_with_nested_directories(self):
-        """Test that nested directories are created"""
+        """Test that nested directories are created."""
         with tempfile.TemporaryDirectory() as tmpdir:
             log_file = os.path.join(tmpdir, "logs", "nested", "test.log")
             with patch.dict(os.environ, {"LOG_FILE": log_file}):
@@ -90,7 +87,7 @@ class TestValidateLogFile:
                 assert not os.path.exists(log_file)
 
     def test_invalid_log_file_path(self):
-        """Test that invalid path returns False"""
+        """Test that invalid path returns False."""
         with patch.dict(os.environ, {"LOG_FILE": "/root/invalid/path/test.log"}):
             # This should fail on non-root systems
             result = validate_log_file()
@@ -99,18 +96,21 @@ class TestValidateLogFile:
 
 
 class TestParseUrlFile:
-    """Tests for URL file parsing"""
+    """Tests for URL file parsing."""
 
     def test_parse_single_line_csv(self):
-        """Test parsing single line with 3 URLs"""
+        """Test parsing single line with 3 URLs."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-            f.write("https://github.com/user/repo,https://huggingface.co/datasets/test,https://huggingface.co/model\n")
+            f.write(
+                "https://github.com/user/repo,https://huggingface.co/datasets/test,"
+                "https://huggingface.co/model\n"
+            )
             f.flush()
             filename = f.name
 
         try:
             urlsets = parseUrlFile(filename)
-            assert len(urlsets) == 1 # Only 1 URL Set
+            assert len(urlsets) == 1  # Only 1 URL Set
             assert isinstance(urlsets[0].code, Url)
             assert urlsets[0].code.category == UrlCategory.CODE
             assert isinstance(urlsets[0].dataset, Url)
@@ -121,7 +121,7 @@ class TestParseUrlFile:
             os.unlink(filename)
 
     def test_parse_partial_entries(self):
-        """Test parsing lines with empty fields"""
+        """Test parsing lines with empty fields."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write(",,https://huggingface.co/model\n")
             f.write(",,https://huggingface.co/model2,\n")
@@ -135,10 +135,16 @@ class TestParseUrlFile:
             os.unlink(filename)
 
     def test_parse_multiple_lines(self):
-        """Test parsing multiple lines"""
+        """Test parsing multiple lines."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-            f.write("https://github.com/user/repo,https://huggingface.co/datasets/test,https://huggingface.co/model\n")
-            f.write("https://github.com/user2/repo2,https://huggingface.co/datasets/test2,https://huggingface.co/model2\n")
+            f.write(
+                "https://github.com/user/repo,https://huggingface.co/datasets/test,"
+                "https://huggingface.co/model\n"
+            )
+            f.write(
+                "https://github.com/user2/repo2,https://huggingface.co/datasets/test2,"
+                "https://huggingface.co/model2\n"
+            )
             f.flush()
             filename = f.name
 
@@ -149,7 +155,7 @@ class TestParseUrlFile:
             os.unlink(filename)
 
     def test_parse_empty_file(self):
-        """Test parsing empty file"""
+        """Test parsing empty file."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write("")
             f.flush()
@@ -162,12 +168,18 @@ class TestParseUrlFile:
             os.unlink(filename)
 
     def test_parse_file_with_blank_lines(self):
-        """Test parsing file with blank lines"""
+        """Test parsing file with blank lines."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-            f.write("https://github.com/user/repo,https://huggingface.co/datasets/test,https://huggingface.co/model\n")
+            f.write(
+                "https://github.com/user/repo,https://huggingface.co/datasets/test,"
+                "https://huggingface.co/model\n"
+            )
             f.write("\n")
             f.write("\n")
-            f.write("https://github.com/user2/repo2,https://huggingface.co/datasets/test2,https://huggingface.co/model2\n")
+            f.write(
+                "https://github.com/user2/repo2,https://huggingface.co/datasets/test2,"
+                "https://huggingface.co/model2\n"
+            )
             f.flush()
             filename = f.name
 
@@ -178,9 +190,12 @@ class TestParseUrlFile:
             os.unlink(filename)
 
     def test_parse_file_with_whitespace(self):
-        """Test parsing file with extra whitespace"""
+        """Test parsing file with extra whitespace."""
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
-            f.write("  https://github.com/user/repo  ,  https://huggingface.co/datasets/test  ,  https://huggingface.co/model  \n")
+            f.write(
+                "  https://github.com/user/repo  ,  https://huggingface.co/datasets/"
+                "test  ,  https://huggingface.co/model  \n"
+            )
             f.flush()
             filename = f.name
 
@@ -193,11 +208,11 @@ class TestParseUrlFile:
 
 
 class TestCalculateScores:
-    """Tests for calculate_scores function"""
+    """Tests for calculate_scores function."""
 
     @patch("src.main.score_url")
     def test_calculate_scores_valid_urls(self, mock_score):
-        """Test calculate_scores with valid URLs"""
+        """Test calculate_scores with valid URLs."""
         from src.scorer import ScoreResult
 
         mock_score.return_value = ScoreResult(
@@ -205,19 +220,23 @@ class TestCalculateScores:
             category=UrlCategory.MODEL,
             score=8.0,
             max_score=10.0,
-            details={"name": "test-model", "downloads": 1000}
+            details={"name": "test-model", "downloads": 1000},
         )
 
-        urlset = UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL))
+        urlset = UrlSet(
+            None, None, Url("https://huggingface.co/model", UrlCategory.MODEL)
+        )
 
         result = calculate_scores(urlset)
         assert result["category"] == "MODEL"
-        assert result["net_score"] == round(mock_score.return_value.details.get("net_score", 0.0), 2)
+        assert result["net_score"] == round(
+            mock_score.return_value.details.get("net_score", 0.0), 2
+        )
         assert result["name"] == "test-model"
 
     @patch("src.main.score_url")
     def test_calculate_scores_invalid_urls(self, mock_score):
-        """Test calculate_scores with invalid URLs"""
+        """Test calculate_scores with invalid URLs."""
         urlset = UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID))
 
         result = calculate_scores(urlset)
@@ -227,7 +246,7 @@ class TestCalculateScores:
 
     @patch("src.main.score_url")
     def test_calculate_scores_mixed_urls(self, mock_score):
-        """Test calculate_scores with mix of valid and invalid URLs"""
+        """Test calculate_scores with mix of valid and invalid URLs."""
         from src.scorer import ScoreResult
 
         mock_score.return_value = ScoreResult(
@@ -235,11 +254,15 @@ class TestCalculateScores:
             category=UrlCategory.MODEL,
             score=7.0,
             max_score=10.0,
-            details={"name": "test"}
+            details={"name": "test"},
         )
 
-        valid_urlset = UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL))
-        invalid_urlset = UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID))
+        valid_urlset = UrlSet(
+            None, None, Url("https://huggingface.co/model", UrlCategory.MODEL)
+        )
+        invalid_urlset = UrlSet(
+            None, None, Url("https://invalid.com", UrlCategory.INVALID)
+        )
 
         valid_result = calculate_scores(valid_urlset)
         invalid_result = calculate_scores(invalid_urlset)
@@ -247,22 +270,29 @@ class TestCalculateScores:
         assert valid_result["category"] == "MODEL"
         assert invalid_result["category"] == "INVALID"
 
+
 class TestMain:
-    """Tests for main function"""
+    """Tests for main function."""
 
     @patch("src.main.validate_log_file")
     @patch("src.main.validate_github_token")
     @patch("src.main.parseUrlFile")
     @patch("src.main.calculate_scores")
     @patch("src.log.loggerInstance.logger")
-    def test_main_success(self, mock_logger, mock_calc, mock_parse, mock_token, mock_log):
-        """Test successful main execution"""
+    def test_main_success(
+        self, mock_logger, mock_calc, mock_parse, mock_token, mock_log
+    ):
+        """Test successful main execution."""
         mock_log.return_value = True
         mock_token.return_value = True
         mock_parse.return_value = [
             UrlSet(None, None, Url("https://huggingface.co/model", UrlCategory.MODEL)),
         ]
-        mock_calc.return_value = {"category": "MODEL", "name": "test-model", "net_score": 1.0}
+        mock_calc.return_value = {
+            "category": "MODEL",
+            "name": "test-model",
+            "net_score": 1.0,
+        }
 
         with patch.object(sys, "argv", ["prog", "test.txt"]):
             result = main()
@@ -271,7 +301,7 @@ class TestMain:
     @patch("src.main.validate_log_file")
     @patch("src.log.loggerInstance.logger")
     def test_main_invalid_log_file(self, mock_logger, mock_log):
-        """Test main with invalid log file"""
+        """Test main with invalid log file."""
         mock_log.return_value = False
 
         with patch.object(sys, "argv", ["prog", "test.txt"]):
@@ -282,7 +312,7 @@ class TestMain:
     @patch("src.main.validate_github_token")
     @patch("src.log.loggerInstance.logger")
     def test_main_invalid_token(self, mock_logger, mock_token, mock_log):
-        """Test main with invalid GitHub token"""
+        """Test main with invalid GitHub token."""
         mock_log.return_value = True
         mock_token.return_value = False
 
@@ -294,7 +324,7 @@ class TestMain:
     @patch("src.main.validate_github_token")
     @patch("src.log.loggerInstance.logger")
     def test_main_missing_url_file_argument(self, mock_logger, mock_token, mock_log):
-        """Test main without URL file argument"""
+        """Test main without URL file argument."""
         mock_log.return_value = True
         mock_token.return_value = True
 
@@ -306,7 +336,7 @@ class TestMain:
     @patch("src.main.validate_github_token")
     @patch("src.log.loggerInstance.logger")
     def test_main_too_many_arguments(self, mock_logger, mock_token, mock_log):
-        """Test main with too many arguments"""
+        """Test main with too many arguments."""
         mock_log.return_value = True
         mock_token.return_value = True
 

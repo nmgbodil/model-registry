@@ -1,19 +1,16 @@
-"""
-Integrated data fetcher that works with the URL categorization system
-"""
-import json
+"""Integrated data fetcher that works with the URL categorization system."""
+
 import re
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 import requests
-from src.url import Url, UrlCategory, determine_category
+from src.url import Url, UrlCategory
 
 from .log import loggerInstance
 
 
 class IntegratedDataFetcher:
-    """Fetches data from different sources based on URL category"""
+    """Fetches data from different sources based on URL category."""
 
     def __init__(
         self, hf_api_token: Optional[str] = None, github_token: Optional[str] = None
@@ -34,7 +31,7 @@ class IntegratedDataFetcher:
             self.gh_headers = {}
 
     def fetch_data(self, url: str) -> Dict[str, Any]:
-        """Main method to fetch data based on URL category"""
+        """Main method to fetch data based on URL category."""
         url_obj = Url(url)
         try:
             if url_obj.category == UrlCategory.MODEL:
@@ -55,7 +52,7 @@ class IntegratedDataFetcher:
     def _extract_license_from_tags(
         self, info_dict: Dict[str, Any], readme: str = ""
     ) -> str:
-        """Extract license from tags where Hugging Face stores license info"""
+        """Extract license from tags where Hugging Face stores license info."""
         # Strategy 1: Check tags for license:xxx format
         tags = info_dict.get("tags", [])
         for tag in tags:
@@ -75,12 +72,12 @@ class IntegratedDataFetcher:
         return ""
 
     def _fetch_model_data(self, url_obj: Url) -> Dict[str, Any]:
-        """Fetch Hugging Face model data"""
+        """Fetch Hugging Face model data."""
         model_id = self._extract_hf_model_id(url_obj.link)
         if not model_id:
             return {"error": "Could not extract model ID", "category": "MODEL"}
 
-        if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+        if hasattr(loggerInstance, "logger") and loggerInstance.logger:
             loggerInstance.logger.log_info(f"Fetching MODEL data for: {model_id}")
 
         # Get basic model info
@@ -114,12 +111,12 @@ class IntegratedDataFetcher:
         }
 
     def _fetch_dataset_data(self, url_obj: Url) -> Dict[str, Any]:
-        """Fetch Hugging Face dataset data"""
+        """Fetch Hugging Face dataset data."""
         dataset_id = self._extract_hf_dataset_id(url_obj.link)
         if not dataset_id:
             return {"error": "Could not extract dataset ID", "category": "DATASET"}
 
-        if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+        if hasattr(loggerInstance, "logger") and loggerInstance.logger:
             loggerInstance.logger.log_info(f"Fetching DATASET data for: {dataset_id}")
 
         # Get basic dataset info
@@ -151,13 +148,13 @@ class IntegratedDataFetcher:
         }
 
     def _fetch_code_data(self, url_obj: Url) -> Dict[str, Any]:
-        """Fetch GitHub repository data"""
+        """Fetch GitHub repository data."""
         repo_info = self._extract_github_repo(url_obj.link)
         if not repo_info:
             return {"error": "Could not extract GitHub repo info", "category": "CODE"}
 
         owner, repo = repo_info
-        if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+        if hasattr(loggerInstance, "logger") and loggerInstance.logger:
             loggerInstance.logger.log_info(f"Fetching CODE data for: {owner}/{repo}")
 
         # Get basic repo info
@@ -191,31 +188,31 @@ class IntegratedDataFetcher:
 
     # Hugging Face helper methods
     def _extract_hf_model_id(self, url: str) -> Optional[str]:
-        """Extract model ID from HF model URL"""
+        """Extract model ID from HF model URL."""
         # https://huggingface.co/google/gemma-3-270m -> google/gemma-3-270m
         match = re.search(r"huggingface\.co/([^/]+/[^/?]+)", url)
         return match.group(1) if match else None
 
     def _extract_hf_dataset_id(self, url: str) -> Optional[str]:
-        """Extract dataset ID from HF dataset URL"""
+        """Extract dataset ID from HF dataset URL."""
         # https://huggingface.co/datasets/squad -> squad
         match = re.search(r"huggingface\.co/datasets/([^/?]+(?:/[^/?]+)?)", url)
         return match.group(1) if match else None
 
     def _get_hf_model_info(self, model_id: str) -> Dict[str, Any]:
-        """Get model info from HF API"""
+        """Get model info from HF API."""
         try:
             url = f"https://huggingface.co/api/models/{model_id}"
             response = self.session.get(url, headers=self.hf_headers, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"Error fetching model info: {e}")
             return {}
 
     def _get_hf_model_files(self, model_id: str) -> Dict[str, Any]:
-        """Get model files from HF API"""
+        """Get model files from HF API."""
         try:
             url = f"https://huggingface.co/api/models/{model_id}/tree/main"
             response = self.session.get(url, headers=self.hf_headers, timeout=10)
@@ -232,12 +229,12 @@ class IntegratedDataFetcher:
                     }
             return files_dict
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"Error fetching model files: {e}")
             return {}
 
     def _get_hf_readme(self, model_id: str) -> str:
-        """Get README from HF model"""
+        """Get README from HF model."""
         try:
             url = f"https://huggingface.co/{model_id}/raw/main/README.md"
             response = self.session.get(url, timeout=10)
@@ -246,19 +243,19 @@ class IntegratedDataFetcher:
             return ""
 
     def _get_hf_dataset_info(self, dataset_id: str) -> Dict[str, Any]:
-        """Get dataset info from HF API"""
+        """Get dataset info from HF API."""
         try:
             url = f"https://huggingface.co/api/datasets/{dataset_id}"
             response = self.session.get(url, headers=self.hf_headers, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"Error fetching dataset info: {e}")
             return {}
 
     def _get_hf_dataset_files(self, dataset_id: str) -> Dict[str, Any]:
-        """Get dataset files from HF API"""
+        """Get dataset files from HF API."""
         try:
             url = f"https://huggingface.co/api/datasets/{dataset_id}/tree/main"
             response = self.session.get(url, headers=self.hf_headers, timeout=10)
@@ -274,12 +271,12 @@ class IntegratedDataFetcher:
                     }
             return files_dict
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"Error fetching dataset files: {e}")
             return {}
 
     def _get_hf_dataset_readme(self, dataset_id: str) -> str:
-        """Get README from HF dataset"""
+        """Get README from HF dataset."""
         try:
             url = f"https://huggingface.co/datasets/{dataset_id}/raw/main/README.md"
             response = self.session.get(url, timeout=10)
@@ -289,25 +286,25 @@ class IntegratedDataFetcher:
 
     # GitHub helper methods
     def _extract_github_repo(self, url: str) -> Optional[tuple]:
-        """Extract owner/repo from GitHub URL"""
+        """Extract owner/repo from GitHub URL."""
         # https://github.com/owner/repo -> (owner, repo)
         match = re.search(r"github\.com/([^/]+)/([^/?]+)", url)
         return (match.group(1), match.group(2)) if match else None
 
     def _get_github_repo_info(self, owner: str, repo: str) -> Dict[str, Any]:
-        """Get repo info from GitHub API"""
+        """Get repo info from GitHub API."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}"
             response = self.session.get(url, headers=self.gh_headers, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"Error fetching GitHub repo info: {e}")
             return {}
 
     def _get_github_readme(self, owner: str, repo: str) -> str:
-        """Get README from GitHub repo"""
+        """Get README from GitHub repo."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/readme"
             response = self.session.get(url, headers=self.gh_headers, timeout=10)
@@ -322,7 +319,7 @@ class IntegratedDataFetcher:
             return ""
 
     def _get_github_contributors(self, owner: str, repo: str) -> List[str]:
-        """Get contributors from GitHub repo"""
+        """Get contributors from GitHub repo."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/contributors"
             response = self.session.get(url, headers=self.gh_headers, timeout=10)
@@ -334,7 +331,7 @@ class IntegratedDataFetcher:
             return []
 
     def _get_github_recent_commits(self, owner: str, repo: str) -> List[Dict[str, Any]]:
-        """Get recent commits for activity analysis"""
+        """Get recent commits for activity analysis."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/commits"
             response = self.session.get(url, headers=self.gh_headers, timeout=10)
@@ -360,8 +357,10 @@ class IntegratedDataFetcher:
                 memory = size_info.get("num_bytes_memory", 0)
                 rows = size_info.get("num_rows", 0)
                 total_bytes = original or parquet
-                if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
-                    loggerInstance.logger.log_info("[dataset_size] using PRIMARY: dataset_viewer API")
+                if hasattr(loggerInstance, "logger") and loggerInstance.logger:
+                    loggerInstance.logger.log_info(
+                        "[dataset_size] using PRIMARY: dataset_viewer API"
+                    )
                 return {
                     "total_bytes": total_bytes,
                     "total_gb": total_bytes / (1024**3) if total_bytes > 0 else 0,
@@ -372,14 +371,16 @@ class IntegratedDataFetcher:
                     "api_method": "dataset_viewer",
                 }
             else:
-                if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+                if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                     loggerInstance.logger.log_info(
-                        f"[dataset_size] PRIMARY failed with status {response.status_code}; trying FALLBACK: huggingface_hub"
+                        "[dataset_size] PRIMARY failed with status "
+                        f"{response.status_code}; trying FALLBACK: huggingface_hub"
                     )
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(
-                    f"[dataset_size] PRIMARY error ({e}); trying FALLBACK: huggingface_hub"
+                    "[dataset_size] PRIMARY error "
+                    f"({e}); trying FALLBACK: huggingface_hub"
                 )
 
         try:
@@ -392,8 +393,10 @@ class IntegratedDataFetcher:
             for sibling in ds_info.siblings:
                 total_size_bytes += sibling.size or 0
                 file_count += 1
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
-                loggerInstance.logger.log_info("[dataset_size] using FALLBACK: huggingface_hub")
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
+                loggerInstance.logger.log_info(
+                    "[dataset_size] using FALLBACK: huggingface_hub"
+                )
             return {
                 "total_bytes": total_size_bytes,
                 "total_gb": total_size_bytes / (1024**3) if total_size_bytes > 0 else 0,
@@ -404,7 +407,7 @@ class IntegratedDataFetcher:
                 "api_method": "huggingface_hub",
             }
         except Exception as e:
-            if hasattr(loggerInstance, 'logger') and loggerInstance.logger:
+            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"[dataset_size] FALLBACK error: {e}")
             return {
                 "error": f"Dataset size could not be determined: {str(e)}",
@@ -420,7 +423,7 @@ class IntegratedDataFetcher:
     def _extract_contributors(
         self, info: Dict[str, Any], id_fallback: str
     ) -> List[str]:
-        """Extract contributors from HF API response"""
+        """Extract contributors from HF API response."""
         if "author" in info and info["author"]:
             return [info["author"]]
         else:
@@ -428,14 +431,8 @@ class IntegratedDataFetcher:
             return [id_fallback.split("/")[0]]
 
     def _extract_github_license(self, repo_data: Dict[str, Any]) -> str:
-        """Extract license from GitHub repo data"""
+        """Extract license from GitHub repo data."""
         license_info = repo_data.get("license")
         if license_info and isinstance(license_info, dict):
             return license_info.get("spdx_id", "")
         return ""
-
-
-if __name__ == "__main__":
-    # Run tests
-    test_url_categorization()
-    test_data_fetching()

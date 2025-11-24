@@ -1,6 +1,6 @@
-"""
-Autograder Management Script
-Automates interaction with the autograder API with nice formatting and automatic log retrieval.
+"""Autograder Management Script.
+
+Automates interaction with the autograder API with formatting and auto log retrieval.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union, cast
 
 import requests
 
@@ -19,6 +19,8 @@ GH_TOKEN = os.environ.get("GH_TOKEN", "")
 
 
 class Colors:
+    """ANSI color codes for pretty CLI output."""
+
     HEADER = "\033[95m"
     OKBLUE = "\033[94m"
     OKCYAN = "\033[96m"
@@ -30,31 +32,37 @@ class Colors:
     UNDERLINE = "\033[4m"
 
 
-def print_header(text: str):
+def print_header(text: str) -> None:
+    """Print a formatted section header."""
     print(f"\n{Colors.HEADER}{Colors.BOLD}{'=' * 60}{Colors.ENDC}")
     print(f"{Colors.HEADER}{Colors.BOLD}{text.center(60)}{Colors.ENDC}")
     print(f"{Colors.HEADER}{Colors.BOLD}{'=' * 60}{Colors.ENDC}\n")
 
 
-def print_success(text: str):
+def print_success(text: str) -> None:
+    """Print a success message."""
     print(f"{Colors.OKGREEN}[+] {text}{Colors.ENDC}")
 
 
-def print_error(text: str):
+def print_error(text: str) -> None:
+    """Print an error message."""
     print(f"{Colors.FAIL}[!] {text}{Colors.ENDC}")
 
 
-def print_info(text: str):
+def print_info(text: str) -> None:
+    """Print an informational message."""
     print(f"{Colors.OKCYAN}[>] {text}{Colors.ENDC}")
 
 
-def print_warning(text: str):
+def print_warning(text: str) -> None:
+    """Print a warning message."""
     print(f"{Colors.WARNING}[?] {text}{Colors.ENDC}")
 
 
 def make_request(
-    endpoint: str, method: str = "POST", data: Optional[Dict] = None
-) -> Optional[Dict]:
+    endpoint: str, method: str = "POST", data: Optional[Dict[str, Any]] = None
+) -> Optional[Union[Dict[str, Any], list[Any]]]:
+    """Make an authenticated request to the autograder API."""
     url = f"{BASE_URL}/{endpoint}"
 
     if data is None:
@@ -70,13 +78,15 @@ def make_request(
             response = requests.post(url, json=data, timeout=30)
 
         response.raise_for_status()
-        return response.json()
+        result_json = response.json()
+        return cast(Optional[Union[Dict[str, Any], list[Any]]], result_json)
     except requests.exceptions.RequestException as e:
         print_error(f"Request failed: {e}")
         return None
 
 
-def print_test_results(data: Dict[str, Any], indent: int = 0):
+def print_test_results(data: Dict[str, Any], indent: int = 0) -> None:
+    """Pretty-print test results with indentation."""
     prefix = "  " * indent
 
     for key, value in data.items():
@@ -104,7 +114,8 @@ def print_test_results(data: Dict[str, Any], indent: int = 0):
                 print(f"{prefix}{key}: {value}")
 
 
-def schedule_run():
+def schedule_run() -> Optional[Union[Dict[str, Any], list[Any]]]:
+    """Trigger a new autograder run."""
     print_header("Scheduling Autograder Run")
     result = make_request("schedule")
 
@@ -119,7 +130,9 @@ def schedule_run():
     return result
 
 
-def monitor_runs(wait: bool = True, poll_interval: int = 10):
+def monitor_runs(
+    wait: bool = True, poll_interval: int = 10
+) -> Optional[Union[Dict[str, Any], list[Any]]]:
     """Monitor all runs and optionally wait for completion."""
     print_header("Monitoring Autograder Runs")
 
@@ -130,7 +143,8 @@ def monitor_runs(wait: bool = True, poll_interval: int = 10):
         return result
 
     print_info(
-        f"Polling every {poll_interval} seconds for Group {GROUP_NUMBER}... (Press Ctrl+C to stop)\n"
+        f"Polling every {poll_interval} seconds for Group {GROUP_NUMBER}..."
+        " (Press Ctrl+C to stop)\n"
     )
 
     try:
@@ -182,7 +196,8 @@ def monitor_runs(wait: bool = True, poll_interval: int = 10):
     return result
 
 
-def get_best_run():
+def get_best_run() -> Optional[Dict[str, Any]]:
+    """Fetch and display the best run results."""
     print_header("Fetching Best Run Results")
     result = make_request("best_run", "GET")
 
@@ -195,8 +210,11 @@ def get_best_run():
             print_info(f"Run Time: {result['run_time']}")
 
         if "Total" in result:
+            overall = result["Total"]
             print(
-                f"\n{Colors.BOLD}{Colors.OKGREEN}Overall Score: {result['Total']}{Colors.ENDC}\n"
+                "\n"
+                f"{Colors.BOLD}{Colors.OKGREEN}Overall Score: "
+                f"{overall}{Colors.ENDC}\n"
             )
 
         print_test_results(result)
@@ -207,7 +225,8 @@ def get_best_run():
         return None
 
 
-def download_log(log_path: str, output_file: Optional[str] = None):
+def download_log(log_path: str, output_file: Optional[str] = None) -> Optional[str]:
+    """Download a log file from the autograder and save locally."""
     print_header(f"Downloading Log: {log_path}")
 
     result = make_request("log/download", "GET", {"log": log_path})
@@ -229,7 +248,8 @@ def download_log(log_path: str, output_file: Optional[str] = None):
         return None
 
 
-def main():
+def main() -> None:
+    """CLI entrypoint for managing autograder runs."""
     if not GH_TOKEN:
         print_error("GH_TOKEN environment variable not set!")
         print_info("Please set it with: export GH_TOKEN='your_token_here'")
@@ -260,7 +280,7 @@ def main():
 
     if args.logs:
         best_run = make_request("best_run", "GET")
-        if best_run and "autograder_run_log" in best_run:
+        if isinstance(best_run, dict) and "autograder_run_log" in best_run:
             download_log(best_run["autograder_run_log"])
             if "system_run_log" in best_run:
                 download_log(best_run["system_run_log"])
@@ -300,7 +320,7 @@ def main():
             get_best_run()
         elif choice == "4":
             best_run = make_request("best_run", "GET")
-            if best_run and "autograder_run_log" in best_run:
+            if isinstance(best_run, dict) and "autograder_run_log" in best_run:
                 download_log(best_run["autograder_run_log"])
                 if "system_run_log" in best_run:
                     download_log(best_run["system_run_log"])
