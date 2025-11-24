@@ -6,12 +6,13 @@ Tests both performance improvements and net_score_latency accuracy.
 
 import statistics
 import time
+from typing import Any
 
 from src.scorer import compute_all_metrics_parallel
 from src.url import UrlCategory
 
 
-def test_net_score_latency_accuracy():
+def run_net_score_latency_accuracy() -> bool:
     """Test that net_score_latency is calculated correctly."""
     print("Testing net_score_latency Accuracy")
     print("=" * 50)
@@ -54,7 +55,7 @@ def test_net_score_latency_accuracy():
         return False
 
 
-def simulate_sequential_vs_parallel():
+def simulate_sequential_vs_parallel() -> tuple[float, float]:
     """Simulate and compare sequential vs parallel execution."""
     print("\nSequential vs Parallel Performance Analysis")
     print("=" * 60)
@@ -92,7 +93,7 @@ def simulate_sequential_vs_parallel():
     return speedup, improvement
 
 
-def test_actual_parallel_performance():
+def run_actual_parallel_performance() -> float:
     """Test actual parallel implementation performance."""
     print("\nTesting Actual Parallel Implementation")
     print("=" * 50)
@@ -136,7 +137,7 @@ def test_actual_parallel_performance():
     return avg_time
 
 
-def demonstrate_scaling_benefits():
+def demonstrate_scaling_benefits() -> None:
     """Demonstrate how benefits scale with workload."""
     print("\nScaling Benefits Analysis")
     print("=" * 50)
@@ -166,7 +167,7 @@ def demonstrate_scaling_benefits():
     print("  • Parallel processing becomes essential for production")
 
 
-def show_latency_breakdown(results):
+def show_latency_breakdown(results: dict[str, Any]) -> None:
     """Show detailed latency breakdown."""
     print("\nDetailed Latency Breakdown:")
     print("=" * 50)
@@ -177,20 +178,20 @@ def show_latency_breakdown(results):
             print(f"  {field}: {value}ms")
 
 
-def main():
+def main() -> None:
     """Run comprehensive performance analysis."""
     print("Comprehensive Parallel Metric Computation Test")
     print("=" * 70)
     print()
 
     # Test 1: net_score_latency accuracy
-    latency_success = test_net_score_latency_accuracy()
+    latency_success = run_net_score_latency_accuracy()
 
     # Test 2: Sequential vs Parallel simulation
     speedup, improvement = simulate_sequential_vs_parallel()
 
     # Test 3: Actual parallel performance
-    actual_time = test_actual_parallel_performance()
+    actual_time = run_actual_parallel_performance()
 
     # Test 4: Scaling benefits
     demonstrate_scaling_benefits()

@@ -93,11 +93,10 @@ def calculate_license_score_with_timing(data: Dict[str, Any]) -> Tuple[float, in
     start_time = time.perf_counter()
 
     # Extract license from cardData
-    license_str = (
-        data.get("cardData").get("license")
-        if data.get("cardData") is not None
-        else "unknown"
-    )
+    if card_data := data.get("cardData"):
+        license_str = card_data.get("license")
+    else:
+        license_str = "unknown"
     if isinstance(license_str, list):
         license_str = license_str[0]
 
@@ -130,11 +129,10 @@ def calculate_license_score(data: Dict[str, Any]) -> float:
         license score as float
     """
     # Extract license from cardData
-    license_str = (
-        data.get("cardData").get("license")
-        if data.get("cardData") is not None
-        else "unknown"
-    )
+    if card_data := data.get("cardData"):
+        license_str = card_data.get("license")
+    else:
+        license_str = "unknown"
     if isinstance(license_str, list):
         license_str = license_str[0]
 

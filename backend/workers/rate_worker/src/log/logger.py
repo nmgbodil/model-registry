@@ -4,7 +4,7 @@ import datetime
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 class LogLevel(Enum):
@@ -23,14 +23,15 @@ class Logger:
     """
 
     def __init__(self) -> None:
-        self.log_file_path: str = os.getenv("LOG_FILE")
+        self.log_file_path: Optional[str] = os.getenv("LOG_FILE")
+        log_level = os.getenv("LOG_LEVEL", "0")
         try:
-            self.log_level: int = int(os.getenv("LOG_LEVEL", "0"))
-        except Exception:
-            self.log_level: int = 0
+            self.log_level: int = int(log_level)
+        except ValueError:
+            self.log_level = 0
 
-        if self.log_level not in [0, 1, 2]:
-            self.log_level: int = 0
+        if self.log_level not in {0, 1, 2}:
+            self.log_level = 0
 
         if self.log_file_path:
             try:

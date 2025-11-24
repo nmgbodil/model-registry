@@ -18,7 +18,7 @@ os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 
-def format_floats_to_2dp(obj):
+def format_floats_to_2dp(obj: Any) -> Any:
     """Recursively format all float values to 2 decimal places."""
     if isinstance(obj, dict):
         return {k: format_floats_to_2dp(v) for k, v in obj.items()}

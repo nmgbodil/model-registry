@@ -168,7 +168,7 @@ def find_code_repo_via_genai(model_name: str) -> Optional[str]:
                     r"https://(?:github\.com|gitlab\.com|bitbucket\.org|"
                     r"sourceforge\.net)/[^\s\)]+"
                 )
-                urls = re.findall(url_pattern, content)
+                urls = [str(match) for match in re.findall(url_pattern, content)]
 
                 if urls:
                     return urls[0]

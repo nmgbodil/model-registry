@@ -199,7 +199,7 @@ class IntegratedDataFetcher:
         match = re.search(r"huggingface\.co/datasets/([^/?]+(?:/[^/?]+)?)", url)
         return match.group(1) if match else None
 
-    def _get_hf_model_info(self, model_id: str) -> Dict[str, Any]:
+    def _get_hf_model_info(self, model_id: str) -> Any:
         """Get model info from HF API."""
         try:
             url = f"https://huggingface.co/api/models/{model_id}"
@@ -242,7 +242,7 @@ class IntegratedDataFetcher:
         except Exception:
             return ""
 
-    def _get_hf_dataset_info(self, dataset_id: str) -> Dict[str, Any]:
+    def _get_hf_dataset_info(self, dataset_id: str) -> Any:
         """Get dataset info from HF API."""
         try:
             url = f"https://huggingface.co/api/datasets/{dataset_id}"
@@ -285,13 +285,15 @@ class IntegratedDataFetcher:
             return ""
 
     # GitHub helper methods
-    def _extract_github_repo(self, url: str) -> Optional[tuple]:
+    def _extract_github_repo(
+        self, url: str
+    ) -> Optional[tuple[Optional[str], Optional[str]]]:
         """Extract owner/repo from GitHub URL."""
         # https://github.com/owner/repo -> (owner, repo)
         match = re.search(r"github\.com/([^/]+)/([^/?]+)", url)
         return (match.group(1), match.group(2)) if match else None
 
-    def _get_github_repo_info(self, owner: str, repo: str) -> Dict[str, Any]:
+    def _get_github_repo_info(self, owner: Optional[str], repo: Optional[str]) -> Any:
         """Get repo info from GitHub API."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}"
@@ -303,7 +305,7 @@ class IntegratedDataFetcher:
                 loggerInstance.logger.log_info(f"Error fetching GitHub repo info: {e}")
             return {}
 
-    def _get_github_readme(self, owner: str, repo: str) -> str:
+    def _get_github_readme(self, owner: Optional[str], repo: Optional[str]) -> str:
         """Get README from GitHub repo."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/readme"
@@ -318,7 +320,9 @@ class IntegratedDataFetcher:
         except Exception:
             return ""
 
-    def _get_github_contributors(self, owner: str, repo: str) -> List[str]:
+    def _get_github_contributors(
+        self, owner: Optional[str], repo: Optional[str]
+    ) -> List[str]:
         """Get contributors from GitHub repo."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/contributors"
@@ -330,14 +334,18 @@ class IntegratedDataFetcher:
         except Exception:
             return []
 
-    def _get_github_recent_commits(self, owner: str, repo: str) -> List[Dict[str, Any]]:
+    def _get_github_recent_commits(
+        self, owner: Optional[str], repo: Optional[str]
+    ) -> List[Any]:
         """Get recent commits for activity analysis."""
         try:
             url = f"https://api.github.com/repos/{owner}/{repo}/commits"
             response = self.session.get(url, headers=self.gh_headers, timeout=10)
             if response.status_code == 200:
                 commits = response.json()
-                return commits[:10]  # Last 10 commits
+                return (
+                    commits[:10] if isinstance(commits, List) else []
+                )  # Last 10 commits
             return []
         except Exception:
             return []
@@ -390,22 +398,26 @@ class IntegratedDataFetcher:
             ds_info = api.dataset_info(repo_id=dataset_id, files_metadata=True)
             total_size_bytes = 0
             file_count = 0
-            for sibling in ds_info.siblings:
-                total_size_bytes += sibling.size or 0
-                file_count += 1
-            if hasattr(loggerInstance, "logger") and loggerInstance.logger:
-                loggerInstance.logger.log_info(
-                    "[dataset_size] using FALLBACK: huggingface_hub"
-                )
-            return {
-                "total_bytes": total_size_bytes,
-                "total_gb": total_size_bytes / (1024**3) if total_size_bytes > 0 else 0,
-                "num_files": file_count,
-                "num_rows": 0,  # not provided by hub
-                "memory_size_gb": 0,  # not provided by hub
-                "is_partial": False,
-                "api_method": "huggingface_hub",
-            }
+            if siblings := ds_info.siblings:
+                for sibling in siblings:
+                    total_size_bytes += sibling.size or 0
+                    file_count += 1
+                if hasattr(loggerInstance, "logger") and loggerInstance.logger:
+                    loggerInstance.logger.log_info(
+                        "[dataset_size] using FALLBACK: huggingface_hub"
+                    )
+                return {
+                    "total_bytes": total_size_bytes,
+                    "total_gb": (
+                        total_size_bytes / (1024**3) if total_size_bytes > 0 else 0
+                    ),
+                    "num_files": file_count,
+                    "num_rows": 0,  # not provided by hub
+                    "memory_size_gb": 0,  # not provided by hub
+                    "is_partial": False,
+                    "api_method": "huggingface_hub",
+                }
+            raise ValueError("Model siblings returned None")
         except Exception as e:
             if hasattr(loggerInstance, "logger") and loggerInstance.logger:
                 loggerInstance.logger.log_info(f"[dataset_size] FALLBACK error: {e}")
@@ -430,7 +442,7 @@ class IntegratedDataFetcher:
             # Use organization name as fallback
             return [id_fallback.split("/")[0]]
 
-    def _extract_github_license(self, repo_data: Dict[str, Any]) -> str:
+    def _extract_github_license(self, repo_data: Dict[str, Any]) -> Any:
         """Extract license from GitHub repo data."""
         license_info = repo_data.get("license")
         if license_info and isinstance(license_info, dict):

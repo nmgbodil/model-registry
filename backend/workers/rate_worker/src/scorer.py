@@ -5,7 +5,7 @@ import re
 import shutil
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -48,7 +48,7 @@ class ScoreResult:
         )
 
 
-def make_request(url: str) -> Optional[dict]:
+def make_request(url: str) -> Any:
     """Make HTTP request with error handling."""
     try:
         response = requests.get(
@@ -173,7 +173,7 @@ def analyze_model_repository(
                     repo_id=model_name,
                     cache_dir=temp_dir,
                     local_dir=temp_dir,
-                    local_dir_use_symlinks=False,
+                    # local_dir_use_symlinks=False,
                     token=hf_token,
                     allow_patterns=[
                         "pytorch_model.bin",  # Primary PyTorch model
@@ -231,7 +231,7 @@ def _analyze_model_files(
     Returns:
         Dictionary with file analysis results
     """
-    model_files = []
+    model_files: list[dict[str, float | int | str]] = []
     total_size_bytes = 0
 
     # Common model file patterns
@@ -269,11 +269,11 @@ def _analyze_model_files(
                         {
                             "name": file_path.name,
                             "path": str(file_path.relative_to(repo_path_obj)),
-                            "size_bytes": file_size,
-                            "size_mb": file_size / (1024 * 1024),
+                            "size_bytes": int(file_size),
+                            "size_mb": float(file_size / (1024 * 1024)),
                         }
                     )
-                    total_size_bytes += file_size
+                    total_size_bytes += int(file_size)
 
         # Find config files (for completeness, but don't include in size calculation)
         config_files = []
@@ -285,8 +285,8 @@ def _analyze_model_files(
                         {
                             "name": file_path.name,
                             "path": str(file_path.relative_to(repo_path_obj)),
-                            "size_bytes": file_size,
-                            "size_mb": file_size / (1024 * 1024),
+                            "size_bytes": int(file_size),
+                            "size_mb": float(file_size / (1024 * 1024)),
                         }
                     )
                     # Skip config files when summing model weights
@@ -295,10 +295,10 @@ def _analyze_model_files(
         if model_files:
             # Find the smallest model file (most efficient format)
             smallest_model = min(model_files, key=lambda x: x["size_bytes"])
-            total_size_mb = smallest_model["size_mb"]
-            total_size_bytes = smallest_model["size_bytes"]
+            total_size_mb = float(smallest_model["size_mb"])
+            total_size_bytes = int(smallest_model["size_bytes"])
         else:
-            total_size_mb = 0
+            total_size_mb = 0.0
             total_size_bytes = 0
 
         return {
@@ -353,7 +353,7 @@ def estimate_model_size_with_timing(
 
 def estimate_model_size(
     model_name: str, model_url: str, model_type: str = "model"
-) -> float:
+) -> Any:
     """Estimate model size by analyzing the actual repository.
 
     Args:
@@ -449,7 +449,7 @@ def calculate_code_bus_factor(contributor_count: int, repo_name: str = "") -> fl
 
 def calculate_bus_factor_with_timing(
     url: str, category: UrlCategory, data: Dict[str, Any]
-) -> tuple:
+) -> tuple[float, int]:
     """Calculate bus factor with latency measurement."""
     start_time = time.time()
     contributors = data.get("contributors", [])
@@ -1026,7 +1026,7 @@ def compute_all_metrics_parallel(
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all metric computation tasks
-        future_to_metric = {
+        future_to_metric: Dict[Future[tuple[str, Any, int]], str] = {
             executor.submit(
                 compute_ramp_up_time_parallel, data, model_name
             ): "ramp_up_time",
@@ -1070,7 +1070,7 @@ def compute_all_metrics_parallel(
                 results[f"{metric_name}_latency"] = 0
 
     # Calculate net score with all metrics
-    complete_metrics = {
+    complete_metrics: Dict[str, Any] = {
         "ramp_up_time": results.get("ramp_up_time", 0.0),
         "bus_factor": results.get("bus_factor", 0.0),
         "performance_claims": results.get("performance_claims", 0.0),

@@ -46,11 +46,13 @@ class TestDetermineCategory:
             ("", UrlCategory.INVALID),
         ],
     )
-    def test_determine_category_valid_urls(self, url, expected_category):
+    def test_determine_category_valid_urls(
+        self, url: str, expected_category: UrlCategory
+    ) -> None:
         """Match expected category for valid URLs."""
         assert determine_category(url) == expected_category
 
-    def test_dataset_takes_precedence_over_model(self):
+    def test_dataset_takes_precedence_over_model(self) -> None:
         """Dataset URLs should take precedence over model pattern."""
         url = "https://huggingface.co/datasets/microsoft/DialoGPT-medium"
         assert determine_category(url) == UrlCategory.DATASET
@@ -58,7 +60,7 @@ class TestDetermineCategory:
         url_model = "https://huggingface.co/microsoft/DialoGPT-medium"
         assert determine_category(url_model) == UrlCategory.MODEL
 
-    def test_case_sensitivity(self):
+    def test_case_sensitivity(self) -> None:
         """Invalid when casing does not match regex expectations."""
         invalid_urls = [
             "HTTPS://huggingface.co/datasets/test",
@@ -70,7 +72,7 @@ class TestDetermineCategory:
         for url in invalid_urls:
             assert determine_category(url) in [UrlCategory.INVALID, UrlCategory.MODEL]
 
-    def test_regex_patterns_edge_cases(self):
+    def test_regex_patterns_edge_cases(self) -> None:
         """Edge cases still map to correct categories."""
         # edge_cases = [
         #     "https://huggingface.co/datasets/test-repo",
@@ -92,13 +94,13 @@ class TestDetermineCategory:
 class TestUrl:
     """Tests for Url wrapper."""
 
-    def test_url_with_valid_category_provided(self):
+    def test_url_with_valid_category_provided(self) -> None:
         """Keep provided category when valid."""
         url = Url("https://huggingface.co/datasets/squad", UrlCategory.DATASET)
         assert url.link == "https://huggingface.co/datasets/squad"
         assert url.category == UrlCategory.DATASET
 
-    def test_url_with_auto_detection_valid(self):
+    def test_url_with_auto_detection_valid(self) -> None:
         """Auto-detect categories when not provided."""
         url_dataset = Url("https://huggingface.co/datasets/squad")
         assert url_dataset.category == UrlCategory.DATASET
@@ -110,7 +112,7 @@ class TestUrl:
         assert url_code.category == UrlCategory.CODE
 
     @patch("sys.stdout", new_callable=StringIO)
-    def test_url_with_auto_detection_invalid(self, mock_stdout):
+    def test_url_with_auto_detection_invalid(self, mock_stdout: StringIO) -> None:
         """Mark URL invalid when detection fails."""
         invalid_url = "https://google.com"
         url = Url(invalid_url)
@@ -118,18 +120,18 @@ class TestUrl:
         assert url.category == UrlCategory.INVALID
         assert url.link == invalid_url
 
-    def test_url_with_explicit_invalid_category_but_valid_url(self):
+    def test_url_with_explicit_invalid_category_but_valid_url(self) -> None:
         """Fallback to detected category when INVALID passed."""
         url = Url("https://huggingface.co/datasets/squad", UrlCategory.INVALID)
         assert url.category == UrlCategory.DATASET
 
-    def test_url_with_mismatched_category(self):
+    def test_url_with_mismatched_category(self) -> None:
         """Keep provided category even if URL suggests another."""
         url = Url("https://huggingface.co/datasets/squad", UrlCategory.MODEL)
         assert url.category == UrlCategory.MODEL
         assert url.link == "https://huggingface.co/datasets/squad"
 
-    def test_url_str_representation(self):
+    def test_url_str_representation(self) -> None:
         """String includes link and category."""
         url = Url("https://huggingface.co/datasets/squad", UrlCategory.DATASET)
         expected_str = (
@@ -141,7 +143,7 @@ class TestUrl:
         expected_str_auto = "https://github.com/user/repo Category: UrlCategory.CODE"
         assert str(url_auto) == expected_str_auto
 
-    def test_empty_url(self):
+    def test_empty_url(self) -> None:
         """Empty string yields INVALID category."""
         url = Url("")
         assert url.category == UrlCategory.INVALID
@@ -151,26 +153,25 @@ class TestUrl:
 class TestUrlCategoryEnum:
     """Tests for UrlCategory enum behaviors."""
 
-    def test_enum_values(self):
+    def test_enum_values(self) -> None:
         """Enum values should match expected integers."""
         assert UrlCategory.DATASET.value == 1
         assert UrlCategory.MODEL.value == 2
         assert UrlCategory.CODE.value == 3
         assert UrlCategory.INVALID.value == 4
 
-    def test_enum_string_representation(self):
+    def test_enum_string_representation(self) -> None:
         """Stringify enum members."""
         assert str(UrlCategory.DATASET) == "UrlCategory.DATASET"
         assert str(UrlCategory.MODEL) == "UrlCategory.MODEL"
         assert str(UrlCategory.CODE) == "UrlCategory.CODE"
         assert str(UrlCategory.INVALID) == "UrlCategory.INVALID"
 
-    def test_enum_comparison(self):
+    def test_enum_comparison(self) -> None:
         """Enum comparisons behave as expected."""
         assert UrlCategory.DATASET == UrlCategory.DATASET
-        assert UrlCategory.DATASET != UrlCategory.MODEL
-        assert UrlCategory.DATASET != UrlCategory.CODE
-        assert UrlCategory.DATASET != UrlCategory.INVALID
+        for other in (UrlCategory.MODEL, UrlCategory.CODE, UrlCategory.INVALID):
+            assert UrlCategory.DATASET != other
 
 
 class TestIntegration:
@@ -188,8 +189,12 @@ class TestIntegration:
     )
     @patch("sys.stdout", new_callable=StringIO)
     def test_end_to_end_url_processing(
-        self, mock_stdout, url, expected_category, should_print_error
-    ):
+        self,
+        mock_stdout: StringIO,
+        url: str,
+        expected_category: UrlCategory,
+        should_print_error: bool,
+    ) -> None:
         """End-to-end check from URL to category and string repr."""
         url_obj = Url(url)
 

@@ -3,13 +3,14 @@
 import os
 import shutil
 import tempfile
+from typing import Iterator
 
 import pytest
 from src.log.logger import Logger
 
 
 @pytest.fixture
-def temp_log_dir():
+def temp_log_dir() -> Iterator[str]:
     """Provide a temporary directory for logging."""
     temp_dir = tempfile.mkdtemp()
     yield temp_dir
@@ -17,7 +18,7 @@ def temp_log_dir():
 
 
 @pytest.fixture
-def clean_env():
+def clean_env() -> Iterator[None]:
     """Clear LOG_FILE and LOG_LEVEL for the test scope."""
     original_log_file = os.environ.get("LOG_FILE")
     original_log_level = os.environ.get("LOG_LEVEL")
@@ -38,7 +39,7 @@ def clean_env():
 class TestLogger:
     """Logger behavior across configuration states."""
 
-    def test_default_configuration(self, clean_env):
+    def test_default_configuration(self, clean_env: None) -> None:
         """Defaults to silent logging with no file."""
         logger = Logger()
         config = logger.get_config()
@@ -47,7 +48,9 @@ class TestLogger:
         assert config["log_level"] == 0
         assert config["log_level_name"] == "SILENT"
 
-    def test_environment_variable_reading(self, temp_log_dir, clean_env):
+    def test_environment_variable_reading(
+        self, temp_log_dir: str, clean_env: None
+    ) -> None:
         """Test that logger correctly reads environment variables."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -61,13 +64,13 @@ class TestLogger:
         assert config["log_level_name"] == "DEBUG"
 
     @pytest.mark.parametrize("invalid_level", ["invalid", "3", "-1", "10", "abc"])
-    def test_invalid_log_level(self, invalid_level, clean_env):
+    def test_invalid_log_level(self, invalid_level: str, clean_env: None) -> None:
         """Test that invalid log levels default to 0."""
         os.environ["LOG_LEVEL"] = invalid_level
         logger = Logger()
         assert logger.log_level == 0
 
-    def test_silent_level_logging(self, temp_log_dir, clean_env):
+    def test_silent_level_logging(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that silent level (0) produces no output."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -80,7 +83,7 @@ class TestLogger:
         # Log file should not exist or be empty
         assert not os.path.exists(test_log_file)
 
-    def test_info_level_logging(self, temp_log_dir, clean_env):
+    def test_info_level_logging(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that info level (1) logs info messages but not debug."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -97,7 +100,7 @@ class TestLogger:
         assert "INFO: Info message" in content
         assert "DEBUG: Debug message" not in content
 
-    def test_debug_level_logging(self, temp_log_dir, clean_env):
+    def test_debug_level_logging(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that debug level (2) logs both info and debug messages."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -114,7 +117,7 @@ class TestLogger:
         assert "INFO: Info message" in content
         assert "DEBUG: Debug message" in content
 
-    def test_log_file_creation(self, temp_log_dir, clean_env):
+    def test_log_file_creation(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that log file and directories are created automatically."""
         nested_log_path = os.path.join(temp_log_dir, "logs", "nested", "app.log")
         os.environ["LOG_FILE"] = nested_log_path
@@ -126,7 +129,7 @@ class TestLogger:
         assert os.path.exists(nested_log_path)
         assert os.path.isfile(nested_log_path)
 
-    def test_log_appending(self, temp_log_dir, clean_env):
+    def test_log_appending(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that new log entries are appended to existing file."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -147,7 +150,7 @@ class TestLogger:
         assert "Second message" in content
         assert content.count("INFO:") == 2
 
-    def test_timestamp_format(self, temp_log_dir, clean_env):
+    def test_timestamp_format(self, temp_log_dir: str, clean_env: None) -> None:
         """Test that log entries include properly formatted timestamps."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file
@@ -165,7 +168,7 @@ class TestLogger:
         timestamp_pattern = r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]"
         assert re.search(timestamp_pattern, content)
 
-    def test_no_log_file_specified(self, clean_env):
+    def test_no_log_file_specified(self, clean_env: None) -> None:
         """Test that no logging occurs when LOG_FILE is not set."""
         os.environ["LOG_LEVEL"] = "2"
         # LOG_FILE not set
@@ -177,7 +180,7 @@ class TestLogger:
 
         # No assertions needed - just ensuring no exceptions
 
-    def test_file_write_error_handling(self, clean_env):
+    def test_file_write_error_handling(self, clean_env: None) -> None:
         """Test that file write errors are handled gracefully."""
         # Try to write to a directory that doesn't exist and can't be created
         os.environ["LOG_FILE"] = "/root/cannot/create/this/path/log.txt"
@@ -196,8 +199,13 @@ class TestLogger:
         ],
     )
     def test_logging_levels_comprehensive(
-        self, temp_log_dir, clean_env, log_level, expected_info, expected_debug
-    ):
+        self,
+        temp_log_dir: str,
+        clean_env: None,
+        log_level: int,
+        expected_info: bool,
+        expected_debug: bool,
+    ) -> None:
         """Comprehensive test of all logging levels."""
         test_log_file = os.path.join(temp_log_dir, "test.log")
         os.environ["LOG_FILE"] = test_log_file

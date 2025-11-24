@@ -1,5 +1,6 @@
 """Tests for scorer helpers and metrics."""
 
+from typing import Any, Dict, cast
 from unittest.mock import Mock, patch
 
 from src.performance_claims import calculate_performance_claims_with_timing
@@ -24,7 +25,7 @@ from src.url import UrlCategory
 class TestScoreResult:
     """Tests for ScoreResult helper."""
 
-    def test_percentage_calculation(self):
+    def test_percentage_calculation(self) -> None:
         """Percent uses max_score when present."""
         result = ScoreResult(
             url="https://example.com",
@@ -35,7 +36,7 @@ class TestScoreResult:
         )
         assert result.percentage == 75.0
 
-    def test_percentage_zero_max_score(self):
+    def test_percentage_zero_max_score(self) -> None:
         """Percent is zero when max_score is zero."""
         result = ScoreResult(
             url="https://example.com",
@@ -46,7 +47,7 @@ class TestScoreResult:
         )
         assert result.percentage == 0.0
 
-    def test_str_representation(self):
+    def test_str_representation(self) -> None:
         """String representation includes category and scores."""
         result = ScoreResult(
             url="https://example.com",
@@ -64,7 +65,7 @@ class TestMakeRequest:
     """Tests for HTTP request wrapper."""
 
     @patch("src.scorer.requests.get")
-    def test_successful_request(self, mock_get):
+    def test_successful_request(self, mock_get: Any) -> None:
         """Return JSON when request succeeds."""
         mock_response = Mock()
         mock_response.json.return_value = {"data": "test"}
@@ -76,7 +77,7 @@ class TestMakeRequest:
         mock_get.assert_called_once()
 
     @patch("src.scorer.requests.get")
-    def test_failed_request(self, mock_get):
+    def test_failed_request(self, mock_get: Any) -> None:
         """Return None on exception."""
         mock_get.side_effect = Exception("Network error")
 
@@ -84,7 +85,7 @@ class TestMakeRequest:
         assert result is None
 
     @patch("src.scorer.requests.get")
-    def test_request_timeout(self, mock_get):
+    def test_request_timeout(self, mock_get: Any) -> None:
         """Return None on timeout."""
         mock_get.side_effect = TimeoutError()
 
@@ -95,7 +96,7 @@ class TestMakeRequest:
 class TestCalculateSizeScore:
     """Tests for size score calculations."""
 
-    def test_small_model_raspberry_pi(self):
+    def test_small_model_raspberry_pi(self) -> None:
         """Small models score 1.0 on all hardware."""
         scores = calculate_size_score(0)
         assert scores["raspberry_pi"] == 1.0
@@ -103,7 +104,7 @@ class TestCalculateSizeScore:
         assert scores["desktop_pc"] == 1.0
         assert scores["aws_server"] == 1.0
 
-    def test_medium_model_raspberry_pi(self):
+    def test_medium_model_raspberry_pi(self) -> None:
         """Mid-size models degrade on smaller hardware."""
         scores = calculate_size_score(100)
         assert scores["raspberry_pi"] == 0.74
@@ -111,7 +112,7 @@ class TestCalculateSizeScore:
         assert scores["desktop_pc"] > 0.01995
         assert scores["aws_server"] > 0.001995
 
-    def test_large_model_all_hardware(self):
+    def test_large_model_all_hardware(self) -> None:
         """Large models reduce scores on constrained devices."""
         scores = calculate_size_score(10000)
         assert scores["raspberry_pi"] == 0.0
@@ -119,7 +120,7 @@ class TestCalculateSizeScore:
         assert scores["desktop_pc"] < 0.5
         assert scores["aws_server"] > 0.0
 
-    def test_very_large_model(self):
+    def test_very_large_model(self) -> None:
         """Extremely large models yield zero scores."""
         scores = calculate_size_score(10000000)
         assert scores["raspberry_pi"] == 0.0
@@ -127,7 +128,7 @@ class TestCalculateSizeScore:
         assert scores["desktop_pc"] == 0.0
         assert scores["aws_server"] == 0.0
 
-    def test_boundary_values(self):
+    def test_boundary_values(self) -> None:
         """Boundary cases hold expected values."""
         scores_200 = calculate_size_score(20)
         assert scores_200["raspberry_pi"] == 0.95
@@ -139,17 +140,17 @@ class TestCalculateSizeScore:
 class TestEstimateModelSize:
     """Tests for estimate_model_size function."""
 
-    def test_estimate_unknown_model(self):
+    def test_estimate_unknown_model(self) -> None:
         """Test estimation for unknown model."""
         size = estimate_model_size("unknown", "test_url", "model")
         assert size == 500
 
-    def test_estimate_empty_model(self):
+    def test_estimate_empty_model(self) -> None:
         """Test estimation for empty model name."""
         size = estimate_model_size("", "test_url", "model")
         assert size == 500
 
-    def __test_estimate_known_model(self):
+    def __test_estimate_known_model(self) -> None:
         """Test estimation for known model."""
         size = estimate_model_size(
             "google/bert",
@@ -162,7 +163,7 @@ class TestEstimateModelSize:
 class TestScoreDataset:
     """Tests for score_dataset function."""
 
-    def test_score_dataset_invalid_url(self):
+    def test_score_dataset_invalid_url(self) -> None:
         """Test scoring invalid dataset URL."""
         result = score_dataset("https://invalid.com")
         assert result.category == UrlCategory.DATASET
@@ -170,7 +171,7 @@ class TestScoreDataset:
         assert "error" in result.details
 
     @patch("src.scorer.make_request")
-    def test_score_dataset_no_data(self, mock_request):
+    def test_score_dataset_no_data(self, mock_request: Any) -> None:
         """Test scoring dataset with no API data."""
         mock_request.return_value = None
 
@@ -179,7 +180,7 @@ class TestScoreDataset:
         assert result.details["name"] == "squad"
 
     @patch("src.scorer.make_request")
-    def test_score_dataset_with_data(self, mock_request):
+    def test_score_dataset_with_data(self, mock_request: Any) -> None:
         """Test scoring dataset with API data."""
         mock_request.return_value = {
             "downloads": 50000,
@@ -221,7 +222,7 @@ class TestScoreDataset:
 class TestScoreModel:
     """Tests for score_model function."""
 
-    def test_score_model_invalid_url(self):
+    def test_score_model_invalid_url(self) -> None:
         """Test scoring invalid model URL."""
         result = score_model("https://invalid.com")
         assert result.category == UrlCategory.MODEL
@@ -272,7 +273,7 @@ class TestScoreModel:
 class TestScoreCode:
     """Tests for score_code function."""
 
-    def test_score_code_invalid_url(self):
+    def test_score_code_invalid_url(self) -> None:
         """Test scoring invalid code URL."""
         result = score_code("https://invalid.com")
         assert result.category == UrlCategory.CODE
@@ -280,7 +281,7 @@ class TestScoreCode:
         assert "error" in result.details
 
     @patch("src.scorer.make_request")
-    def test_score_code_no_data(self, mock_request):
+    def test_score_code_no_data(self, mock_request: Any) -> None:
         """Test scoring code with no API data."""
         mock_request.return_value = None
 
@@ -290,7 +291,7 @@ class TestScoreCode:
         assert result.details["name"] == "user/repo"
 
     @patch("src.scorer.make_request")
-    def test_score_code_with_data(self, mock_request):
+    def test_score_code_with_data(self, mock_request: Any) -> None:
         """Test scoring code with API data."""
         mock_request.return_value = {
             "stargazers_count": 5000,
@@ -309,7 +310,7 @@ class TestScoreCode:
         assert result.details["language"] == "Python"
 
     @patch("src.scorer.make_request")
-    def test_score_code_high_stars(self, mock_request):
+    def test_score_code_high_stars(self, mock_request: Any) -> None:
         """Test scoring code with high star count."""
         mock_request.return_value = {
             "stargazers_count": 10000,
@@ -323,7 +324,7 @@ class TestScoreCode:
         assert result.score >= 8.0
 
     @patch("src.scorer.make_request")
-    def test_score_code_low_metrics(self, mock_request):
+    def test_score_code_low_metrics(self, mock_request: Any) -> None:
         """Test scoring code with low metrics."""
         mock_request.return_value = {
             "stargazers_count": 5,
@@ -342,7 +343,7 @@ class TestScoreUrl:
     """Tests for score_url function."""
 
     @patch("src.scorer.score_dataset")
-    def test_score_url_dataset(self, mock_score):
+    def test_score_url_dataset(self, mock_score: Any) -> None:
         """Test scoring dataset URL."""
         mock_result = ScoreResult(
             url="test",
@@ -354,11 +355,12 @@ class TestScoreUrl:
         mock_score.return_value = mock_result
 
         result = score_url("https://huggingface.co/datasets/test", UrlCategory.DATASET)
+        assert result is not None
         assert result.category == UrlCategory.DATASET
         mock_score.assert_called_once()
 
     @patch("src.scorer.score_model")
-    def test_score_url_model(self, mock_score):
+    def test_score_url_model(self, mock_score: Any) -> None:
         """Test scoring model URL."""
         mock_result = ScoreResult(
             url="test",
@@ -370,11 +372,12 @@ class TestScoreUrl:
         mock_score.return_value = mock_result
 
         result = score_url("https://huggingface.co/test", UrlCategory.MODEL)
+        assert result is not None
         assert result.category == UrlCategory.MODEL
         mock_score.assert_called_once()
 
     @patch("src.scorer.score_code")
-    def test_score_url_code(self, mock_score):
+    def test_score_url_code(self, mock_score: Any) -> None:
         """Test scoring code URL."""
         mock_result = ScoreResult(
             url="test", category=UrlCategory.CODE, score=5.0, max_score=10.0, details={}
@@ -382,6 +385,7 @@ class TestScoreUrl:
         mock_score.return_value = mock_result
 
         result = score_url("https://github.com/test/repo", UrlCategory.CODE)
+        assert result is not None
         assert result.category == UrlCategory.CODE
         mock_score.assert_called_once()
 
@@ -396,46 +400,46 @@ class TestScoreUrl:
 class TestBusFactor:
     """Tests for bus factor helpers."""
 
-    def test_model_bus_factor_no_contributors(self):
+    def test_model_bus_factor_no_contributors(self) -> None:
         """Zero contributors yield zero score."""
         score = calculate_model_bus_factor(0, "individual/project")
         assert score == 0.0
 
-    def test_model_bus_factor_single_contributor(self):
+    def test_model_bus_factor_single_contributor(self) -> None:
         """Single contributor gives partial score."""
         score = calculate_model_bus_factor(1, "individual/project")
         assert score == 0.3
 
-    def test_model_bus_factor_major_org(self):
+    def test_model_bus_factor_major_org(self) -> None:
         """Major org boosts score with few contributors."""
         contributor_count = 1
         score = calculate_model_bus_factor(contributor_count, "microsoft/awesome-model")
         assert score == 0.95
 
-    def test_dataset_bus_factor(self):
+    def test_dataset_bus_factor(self) -> None:
         """Datasets with contributors get full score."""
         contributor_count = 3
         score = calculate_dataset_bus_factor(contributor_count, "individual/dataset")
         assert score == 1.0
 
-    def test_dataset_bus_factor_major_org(self):
+    def test_dataset_bus_factor_major_org(self) -> None:
         """Major org dataset gets boosted score."""
         score = calculate_dataset_bus_factor(0, "google/dataset")
         assert score == 0.95
 
-    def test_code_bus_factor_major_org(self):
+    def test_code_bus_factor_major_org(self) -> None:
         """Major org code repo gets boosted score."""
         score = calculate_code_bus_factor(3, "openai/repo")
         assert score == 0.95
 
-    def test_organization_detection(self):
+    def test_organization_detection(self) -> None:
         """Test the organization detection function."""
         assert is_major_organization("google/model") is True
         assert is_major_organization("microsoft/repo") is True
         assert is_major_organization("individual/project") is False
         assert is_major_organization("") is False
 
-    def test_model_bus_factor_multiple_contributors(self):
+    def test_model_bus_factor_multiple_contributors(self) -> None:
         """Multiple contributors reach full score."""
         score = calculate_model_bus_factor(5, "individual/project")
         assert score == 1.0
@@ -444,23 +448,27 @@ class TestBusFactor:
 class TestPerformanceClaims:
     """Tests for calculate_performance_claims_with_timing function."""
 
-    def test_performance_claims_no_data(self):
+    def test_performance_claims_no_data(self) -> None:
         """Test performance claims with no data."""
-        data = {}
+        data: Dict[str, Any] = {}
         score, latency = calculate_performance_claims_with_timing(data, "")
         assert score == 0.0
         assert latency >= 0
 
-    def test_performance_claims_with_model_card(self):
+    def test_performance_claims_with_model_card(self) -> None:
         """Test performance claims with model card."""
-        data = {"cardData": {"some": "data"}, "downloads": 1000, "likes": 50}
+        data: Dict[str, Any] = {
+            "cardData": {"some": "data"},
+            "downloads": 1000,
+            "likes": 50,
+        }
         score, latency = calculate_performance_claims_with_timing(data, "test-model")
         assert score >= 0.1  # Should get some score for having model card
         assert latency >= 0
 
-    def test_performance_claims_with_benchmark_keywords(self):
+    def test_performance_claims_with_benchmark_keywords(self) -> None:
         """Test performance claims with benchmark keywords in card."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "This model achieves 95% accuracy on GLUE benchmark and shows "
@@ -476,9 +484,9 @@ class TestPerformanceClaims:
         assert score > 0.3  # Should get significant score for benchmark keywords
         assert latency >= 0
 
-    def test_performance_claims_with_benchmark_datasets(self):
+    def test_performance_claims_with_benchmark_datasets(self) -> None:
         """Test performance claims with specific benchmark datasets."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "Results on SQuAD, SuperGLUE, and MMLU datasets show strong "
@@ -492,9 +500,9 @@ class TestPerformanceClaims:
         assert score > 0.2  # Should get score for benchmark datasets
         assert latency >= 0
 
-    def test_performance_claims_with_numerical_results(self):
+    def test_performance_claims_with_numerical_results(self) -> None:
         """Test performance claims with numerical results."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Accuracy: 92.5%, F1 Score: 0.89, BLEU: 45.2"},
             "downloads": 20000,
             "likes": 150,
@@ -505,9 +513,9 @@ class TestPerformanceClaims:
         assert score > 0.15  # Should get score for numerical results
         assert latency >= 0
 
-    def test_performance_claims_with_performance_tags(self):
+    def test_performance_claims_with_performance_tags(self) -> None:
         """Test performance claims with performance-related tags."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Model description"},
             "tags": ["benchmark", "evaluation", "sota"],
             "downloads": 30000,
@@ -517,9 +525,9 @@ class TestPerformanceClaims:
         assert score > 0.1  # Should get score for performance tags
         assert latency >= 0
 
-    def test_performance_claims_with_paper_evidence(self):
+    def test_performance_claims_with_paper_evidence(self) -> None:
         """Test performance claims with paper citations."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "See our paper on arXiv:1234.5678 for detailed evaluation results"
@@ -532,9 +540,9 @@ class TestPerformanceClaims:
         assert score > 0.1  # Should get score for paper evidence
         assert latency >= 0
 
-    def test_performance_claims_high_popularity(self):
+    def test_performance_claims_high_popularity(self) -> None:
         """Test performance claims with high popularity."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Basic model"},
             "downloads": 2000000,  # High downloads
             "likes": 5000,  # High likes
@@ -543,9 +551,9 @@ class TestPerformanceClaims:
         assert score > 0.15  # Should get score for high popularity
         assert latency >= 0
 
-    def test_performance_claims_comprehensive_evidence(self):
+    def test_performance_claims_comprehensive_evidence(self) -> None:
         """Test performance claims with comprehensive evidence."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "This model achieves 95% accuracy on GLUE benchmark, 89% F1 on "
@@ -563,16 +571,20 @@ class TestPerformanceClaims:
         assert score > 0.5  # Should get high score for comprehensive evidence
         assert latency >= 0
 
-    def test_performance_claims_score_bounds(self):
+    def test_performance_claims_score_bounds(self) -> None:
         """Test that performance claims score is between 0 and 1."""
-        data = {"cardData": {"content": "Test"}, "downloads": 1000, "likes": 10}
+        data: Dict[str, Any] = {
+            "cardData": {"content": "Test"},
+            "downloads": 1000,
+            "likes": 10,
+        }
         score, latency = calculate_performance_claims_with_timing(data, "test-model")
         assert 0.0 <= score <= 1.0
         assert latency >= 0
 
-    def test_performance_claims_error_handling(self):
+    def test_performance_claims_error_handling(self) -> None:
         """Test performance claims with invalid data."""
-        data = None
+        data = cast(Dict[str, Any], None)
         score, latency = calculate_performance_claims_with_timing(data, "invalid-model")
         assert score == 0.0
         assert latency >= 0
@@ -581,23 +593,27 @@ class TestPerformanceClaims:
 class TestRampUpTime:
     """Tests for calculate_ramp_up_time_with_timing function."""
 
-    def test_ramp_up_time_no_data(self):
+    def test_ramp_up_time_no_data(self) -> None:
         """Test ramp-up time with no data."""
-        data = {}
+        data: Dict[str, Any] = {}
         score, latency = calculate_ramp_up_time_with_timing(data, "")
         assert score == 0.0
         assert latency >= 0
 
-    def test_ramp_up_time_with_model_card(self):
+    def test_ramp_up_time_with_model_card(self) -> None:
         """Test ramp-up time with model card."""
-        data = {"cardData": {"some": "data"}, "downloads": 1000, "likes": 50}
+        data: Dict[str, Any] = {
+            "cardData": {"some": "data"},
+            "downloads": 1000,
+            "likes": 50,
+        }
         score, latency = calculate_ramp_up_time_with_timing(data, "test-model")
         assert score >= 0.1
         assert latency >= 0
 
-    def test_ramp_up_time_with_readme_file(self):
+    def test_ramp_up_time_with_readme_file(self) -> None:
         """Test ramp-up time with README file."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Model description"},
             "files": [{"rfilename": "README.md"}],
             "downloads": 10000,
@@ -607,9 +623,9 @@ class TestRampUpTime:
         assert score >= 0.24  # Should get score for model card + README file
         assert latency >= 0
 
-    def test_ramp_up_time_with_requirements_file(self):
+    def test_ramp_up_time_with_requirements_file(self) -> None:
         """Test ramp-up time with requirements file."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Model description"},
             "files": [{"rfilename": "requirements.txt"}],
             "downloads": 20000,
@@ -619,9 +635,9 @@ class TestRampUpTime:
         assert score >= 0.3  # Should get score for model card + requirements
         assert latency >= 0
 
-    def test_ramp_up_time_with_example_script(self):
+    def test_ramp_up_time_with_example_script(self) -> None:
         """Test ramp-up time with example script."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Model description"},
             "files": [{"rfilename": "example.py"}],
             "downloads": 30000,
@@ -631,9 +647,9 @@ class TestRampUpTime:
         assert score >= 0.36  # Should get score for model card + example script
         assert latency >= 0
 
-    def test_ramp_up_time_with_config_files(self):
+    def test_ramp_up_time_with_config_files(self) -> None:
         """Test ramp-up time with config files."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Model description"},
             "files": [{"rfilename": "config.json"}],
             "downloads": 40000,
@@ -643,9 +659,9 @@ class TestRampUpTime:
         assert score >= 0.3  # Should get score for model card + config
         assert latency >= 0
 
-    def test_ramp_up_time_with_documentation_sections(self):
+    def test_ramp_up_time_with_documentation_sections(self) -> None:
         """Test ramp-up time with good documentation sections."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "This model is for text classification. Usage: import the model. "
@@ -660,9 +676,9 @@ class TestRampUpTime:
         assert score >= 0.3  # Should get score for model card + documentation sections
         assert latency >= 0
 
-    def test_ramp_up_time_with_code_examples(self):
+    def test_ramp_up_time_with_code_examples(self) -> None:
         """Test ramp-up time with code examples."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "```python\n"
@@ -678,9 +694,9 @@ class TestRampUpTime:
         assert score >= 0.27  # Should get score for model card + code examples
         assert latency >= 0
 
-    def test_ramp_up_time_with_setup_instructions(self):
+    def test_ramp_up_time_with_setup_instructions(self) -> None:
         """Test ramp-up time with setup instructions."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "Installation: pip install transformers torch. Setup: Download the "
@@ -694,9 +710,9 @@ class TestRampUpTime:
         assert score >= 0.3  # Should get score for model card + setup instructions
         assert latency >= 0
 
-    def test_ramp_up_time_comprehensive_evidence(self):
+    def test_ramp_up_time_comprehensive_evidence(self) -> None:
         """Test ramp-up time with comprehensive evidence."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {
                 "content": (
                     "This model is for text classification. Usage: import transformers."
@@ -717,9 +733,9 @@ class TestRampUpTime:
         assert score >= 0.8  # Should get high score for comprehensive evidence
         assert latency >= 0
 
-    def test_ramp_up_time_high_popularity(self):
+    def test_ramp_up_time_high_popularity(self) -> None:
         """Test ramp-up time with high popularity."""
-        data = {
+        data: Dict[str, Any] = {
             "cardData": {"content": "Basic model"},
             "downloads": 2000000,  # High downloads
             "likes": 5000,  # High likes
@@ -728,16 +744,20 @@ class TestRampUpTime:
         assert score >= 0.2  # Should get score for high popularity
         assert latency >= 0
 
-    def test_ramp_up_time_score_bounds(self):
+    def test_ramp_up_time_score_bounds(self) -> None:
         """Test that ramp-up time score is between 0 and 1."""
-        data = {"cardData": {"content": "Test"}, "downloads": 1000, "likes": 10}
+        data: Dict[str, Any] = {
+            "cardData": {"content": "Test"},
+            "downloads": 1000,
+            "likes": 10,
+        }
         score, latency = calculate_ramp_up_time_with_timing(data, "test-model")
         assert 0.0 <= score <= 1.0
         assert latency >= 0
 
-    def test_ramp_up_time_error_handling(self):
+    def test_ramp_up_time_error_handling(self) -> None:
         """Test ramp-up time with invalid data."""
-        data = None
+        data = cast(Dict[str, Any], None)
         score, latency = calculate_ramp_up_time_with_timing(data, "invalid-model")
         assert score == 0.0
         assert latency >= 0
