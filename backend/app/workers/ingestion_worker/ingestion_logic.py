@@ -7,15 +7,12 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.dals.ratings import (
-    create_rating,
-    get_artifact_by_id,
-    update_artifact_attributes,
-)
+from app.dals.artifacts import get_artifact_by_id, update_artifact_attributes
+from app.dals.ratings import create_rating
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating
@@ -24,6 +21,7 @@ from app.services.artifacts.dataset_fetcher import HFDatasetFetcher
 from app.services.artifacts.model_fetcher import HFModelFetcher
 from app.services.storage import upload_artifact
 from app.utils import _is_hf_url, build_model_rating_from_record
+from app.workers.ingestion_worker import metadata as ingestion_metadata
 from app.workers.ingestion_worker.src.main import calculate_scores
 from app.workers.ingestion_worker.src.url import Url, UrlSet
 
@@ -102,29 +100,41 @@ def _is_ingestible(rating: Mapping[str, Any], threshold: float = 0.5) -> bool:
     return True
 
 
-def _fetch_artifact_archive(artifact: Artifact) -> str:
-    """Fetch artifact contents based on type and return a zip file path."""
+def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
+    """Fetch artifact contents based on type and return a zip file path and metadata."""
     if not artifact.source_url:
         raise ValueError("Artifact source_url is required to fetch contents.")
 
     tmp_dir = tempfile.mkdtemp(prefix="artifact_fetch_")
     archive_base = os.path.join(tmp_dir, f"{artifact.name}-full")
 
+    def _finalize_from_root(root: Path) -> Tuple[str, Dict[str, Any]]:
+        archive_path = shutil.make_archive(archive_base, "zip", root_dir=root)
+        dataset_id, code_id = ingestion_metadata.get_dataset_and_code_ids(root)
+        artifact_metadata: Dict[str, Any] = {
+            "parent_artifact_id": ingestion_metadata.get_parent_artifact(root),
+            "checksum_sha256": ingestion_metadata.compute_checksum_sha256(root),
+            "size_bytes": ingestion_metadata.compute_size_bytes(Path(archive_path)),
+            "dataset_id": dataset_id,
+            "code_id": code_id,
+        }
+        return archive_path, artifact_metadata
+
     if artifact.type == "model":
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "model" and repo_id:
             with HFModelFetcher(repo_id) as repo:
-                return shutil.make_archive(archive_base, "zip", root_dir=repo.root)
+                return _finalize_from_root(repo.root)
 
     if artifact.type == "dataset":
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "dataset" and repo_id:
             with HFDatasetFetcher(repo_id) as repo:
-                return shutil.make_archive(archive_base, "zip", root_dir=repo.root)
+                return _finalize_from_root(repo.root)
 
     # treat anything else as code
     with open_codebase(artifact.source_url) as repo:
-        return shutil.make_archive(archive_base, "zip", root_dir=repo.root)
+        return _finalize_from_root(repo.root)
 
 
 def ingest_artifact(artifact_id: int) -> ArtifactStatus:
@@ -142,13 +152,19 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
         rating_payload = calculate_scores(urlset)
 
         if _is_ingestible(rating_payload):
-            archive_path = _fetch_artifact_archive(artifact)
+            archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
             try:
                 s3_uri = upload_artifact(archive_path, artifact.id)
-                update_artifact_attributes(
-                    session, artifact, status=ArtifactStatus.accepted, s3_key=s3_uri
+                attrs: Dict[str, Any] = {
+                    "status": ArtifactStatus.accepted,
+                    "s3_key": s3_uri,
+                }
+                attrs.update(
+                    {k: v for k, v in artifact_metadata.items() if v is not None}
                 )
+                update_artifact_attributes(session, artifact, **attrs)
 
+                logger.debug("Collected artifact metadata: %s", artifact_metadata)
                 _persist_rating(session, artifact, rating_payload)
                 session.commit()
             finally:

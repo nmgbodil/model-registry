@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Union
+from typing import Mapping, Optional, Union
 
 from sqlalchemy.orm import Session
 
-from app.db.models import Artifact, Rating
-
-
-def get_artifact_by_id(session: Session, artifact_id: int) -> Optional[Artifact]:
-    """Fetch an artifact by its primary key."""
-    return session.get(Artifact, artifact_id)
+from app.db.models import Rating
 
 
 def get_rating_by_artifact(session: Session, artifact_id: int) -> Optional[Rating]:
@@ -76,14 +71,3 @@ def create_rating(
     session.add(rating)
     session.flush()
     return rating
-
-
-def update_artifact_attributes(
-    session: Session, artifact: Artifact, **attrs: Any
-) -> Artifact:
-    """Update arbitrary attributes on an artifact."""
-    for key, value in attrs.items():
-        setattr(artifact, key, value)
-    session.add(artifact)
-    session.flush()
-    return artifact

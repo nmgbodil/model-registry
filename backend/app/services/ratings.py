@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app.dals.ratings import get_artifact_by_id, get_rating_by_artifact
+from app.dals.artifacts import get_artifact_by_id
+from app.dals.ratings import get_rating_by_artifact
 from app.db.models import ArtifactStatus
 from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating
