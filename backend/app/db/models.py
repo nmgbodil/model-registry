@@ -67,14 +67,13 @@ class ArtifactStatus(PyEnum):
 
 
 class Artifact(Base):
-    """Versioned artifact metadata stored in the registry."""
+    """Artifact metadata stored in the registry."""
 
     __tablename__ = "artifacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(50), nullable=False, default="model")
-    version: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     license: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     manifest_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
