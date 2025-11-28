@@ -5,14 +5,15 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
-from src.code_quality import (
+
+from app.workers.ingestion_worker.src.code_quality import (
     calculate_code_quality,
     calculate_code_quality_with_timing,
     find_code_repo_via_genai,
     run_flake8_on_repo,
 )
-from src.log import loggerInstance
-from src.log.logger import Logger
+from app.workers.ingestion_worker.src.log import loggerInstance
+from app.workers.ingestion_worker.src.log.logger import Logger
 
 loggerInstance.logger = Logger()
 
@@ -48,7 +49,7 @@ class TestRunFlake8OnRepo:
         assert 0.0 <= score <= 1.0
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_timeout(self, mock_run: Any, tmp_path: Any) -> None:
         """Test flake8 timeout scenario."""
         mock_run.side_effect = subprocess.TimeoutExpired("flake8", 30)
@@ -60,7 +61,7 @@ class TestRunFlake8OnRepo:
         assert score == 0.0
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_exception(self, mock_run: Any, tmp_path: Any) -> None:
         """Test general exception handling."""
         mock_run.side_effect = Exception("Unexpected error")
@@ -72,7 +73,7 @@ class TestRunFlake8OnRepo:
         assert score == 0.0
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_output_parsing(self, mock_run: Any, tmp_path: Any) -> None:
         """Test parsing of flake8 output."""
         mock_result = Mock()
@@ -86,7 +87,7 @@ class TestRunFlake8OnRepo:
         assert score in [0.0, 0.6]  # Mock may not work, expect 0.0 or 0.6
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_malformed_output(self, mock_run: Any, tmp_path: Any) -> None:
         """Test handling of malformed flake8 output."""
         mock_result = Mock()
@@ -104,7 +105,7 @@ class TestRunFlake8OnRepo:
 class TestCodeCoverage:
     """Additional tests to improve code coverage."""
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_timeout_exception(self, mock_run: Any, tmp_path: Any) -> None:
         """Test subprocess.TimeoutExpired exception handling."""
         import subprocess
@@ -118,7 +119,7 @@ class TestCodeCoverage:
         assert score == 0.0  # Should return 0.0 on timeout
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_scoring_ranges(self, mock_run: Any, tmp_path: Any) -> None:
         """Test different flake8 error count ranges."""
         test_cases = [
@@ -148,7 +149,7 @@ class TestCodeCoverage:
             ], f"Expected {expected_score} for {error_count} errors, got {score}"
             assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_parsing_with_error_pattern(
         self, mock_run: Any, tmp_path: Any
     ) -> None:
@@ -164,7 +165,7 @@ class TestCodeCoverage:
         assert score in [0.0, 0.9]  # 5 errors should give 0.9 score
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_parsing_exception_handling(
         self, mock_run: Any, tmp_path: Any
     ) -> None:
@@ -183,9 +184,9 @@ class TestCodeCoverage:
     @pytest.mark.skip(
         reason="Complex mocking issue - GitHub fallback coverage achieved elsewhere"
     )
-    @patch("src.code_quality.loggerInstance")
-    @patch("src.code_quality.requests.post")
-    @patch("src.code_quality.requests.get")
+    @patch("app.workers.ingestion_worker.src.code_quality.loggerInstance")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.get")
     def test_github_fallback_success(
         self, mock_get: Any, mock_post: Any, mock_logger_instance: Any
     ) -> None:
@@ -201,8 +202,8 @@ class TestCodeCoverage:
         result = find_code_repo_via_genai("owner/repo")
         assert result == "https://github.com/owner/repo"
 
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_git_metadata_analysis_success(
         self, mock_flake8: Any, mock_clone: Any
     ) -> None:
@@ -228,9 +229,9 @@ class TestCodeCoverage:
         # Verify git metadata analysis was called
         mock_repo.iter_commits.assert_called_once_with(max_count=100)
 
-    @patch("src.code_quality.find_code_repo_via_genai")
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_genai_fallback_git_metadata_analysis(
         self, mock_flake8: Any, mock_clone: Any, mock_genai: Any
     ) -> None:
@@ -273,7 +274,7 @@ class TestCodeCoverage:
 class TestFindCodeRepoViaGenai:
     """Tests for find_code_repo_via_genai function."""
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_successful_api_response_with_github_url(self, mock_post: Any) -> None:
         """Test successful API response with GitHub URL."""
         mock_response = Mock()
@@ -286,7 +287,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("test/model")
         assert result == "https://github.com/owner/repo"
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_successful_api_response_with_gitlab_url(self, mock_post: Any) -> None:
         """Test successful API response with GitLab URL."""
         mock_response = Mock()
@@ -308,7 +309,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("test/model")
         assert result == "https://gitlab.com/owner/repo"
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_no_code_found_response(self, mock_post: Any) -> None:
         """Test when API returns NO_CODE_FOUND."""
         mock_response = Mock()
@@ -321,7 +322,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("test/model")
         assert result is None
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_api_error_status_code(self, mock_post: Any) -> None:
         """Test API error status code."""
         mock_response = Mock()
@@ -332,7 +333,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("test/model")
         assert result is None
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_api_timeout(self, mock_post: Any) -> None:
         """Test API timeout."""
         mock_post.side_effect = Exception("Timeout")
@@ -340,8 +341,8 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("test/model")
         assert result is None
 
-    @patch("src.code_quality.requests.post")
-    @patch("src.code_quality.requests.get")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.get")
     def test_fallback_to_github_url_fails(self, mock_get: Any, mock_post: Any) -> None:
         """Test fallback fails when GitHub URL doesn't exist."""
         # API fails
@@ -355,7 +356,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("owner/repo")
         assert result is None
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_empty_model_name(self, mock_post: Any) -> None:
         """Test with empty model name."""
         mock_post.side_effect = Exception("Invalid request")
@@ -363,7 +364,7 @@ class TestFindCodeRepoViaGenai:
         result = find_code_repo_via_genai("")
         assert result is None
 
-    @patch("src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
     def test_api_response_with_multiple_urls(self, mock_post: Any) -> None:
         """Test API response with multiple URLs (returns first)."""
         mock_response = Mock()
@@ -389,8 +390,8 @@ class TestFindCodeRepoViaGenai:
 class TestCalculateCodeQualityWithTiming:
     """Tests for calculate_code_quality_with_timing function."""
 
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_with_valid_code_url(self, mock_flake8: Any, mock_clone: Any) -> None:
         """Test with valid code URL provided."""
         mock_repo = Mock()
@@ -403,7 +404,7 @@ class TestCalculateCodeQualityWithTiming:
         assert score == 0.8
         assert latency >= 0
 
-    @patch("src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
     def test_with_code_url_clone_fails(self, mock_clone: Any) -> None:
         """Test when git clone fails."""
         mock_clone.side_effect = Exception("Clone failed")
@@ -414,9 +415,9 @@ class TestCalculateCodeQualityWithTiming:
         assert score == 0.0
         assert latency >= 0
 
-    @patch("src.code_quality.find_code_repo_via_genai")
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_genai_fallback_success(
         self, mock_flake8: Any, mock_clone: Any, mock_genai: Any
     ) -> None:
@@ -430,8 +431,8 @@ class TestCalculateCodeQualityWithTiming:
         assert score == 0.7
         assert latency >= 0
 
-    @patch("src.code_quality.find_code_repo_via_genai")
-    @patch("src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
     def test_genai_fallback_clone_fails(self, mock_clone: Any, mock_genai: Any) -> None:
         """Test GenAI fallback when clone fails."""
         mock_genai.return_value = "https://github.com/found/repo"
@@ -441,7 +442,7 @@ class TestCalculateCodeQualityWithTiming:
         assert score == 0.0
         assert latency >= 0
 
-    @patch("src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
     def test_no_code_repository_found(self, mock_genai: Any) -> None:
         """Test when no code repository is found."""
         mock_genai.return_value = None
@@ -450,8 +451,8 @@ class TestCalculateCodeQualityWithTiming:
         assert score == 0.0
         assert latency >= 0
 
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_latency_measurement(self, mock_flake8: Any, mock_clone: Any) -> None:
         """Test that latency is measured correctly."""
         import time
@@ -473,8 +474,8 @@ class TestCalculateCodeQualityWithTiming:
 class TestCalculateCodeQuality:
     """Tests for calculate_code_quality function (without timing)."""
 
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_with_valid_code_url(self, mock_flake8: Any, mock_clone: Any) -> None:
         """Test with valid code URL."""
         mock_repo = Mock()
@@ -484,7 +485,7 @@ class TestCalculateCodeQuality:
         score = calculate_code_quality("https://github.com/test/repo", "model-name")
         assert score == 0.9
 
-    @patch("src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
     def test_clone_exception(self, mock_clone: Any) -> None:
         """Test exception handling."""
         mock_clone.side_effect = Exception("Clone failed")
@@ -492,9 +493,9 @@ class TestCalculateCodeQuality:
         score = calculate_code_quality("https://github.com/test/repo", "model-name")
         assert score == 0.0
 
-    @patch("src.code_quality.find_code_repo_via_genai")
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_genai_fallback(
         self, mock_flake8: Any, mock_clone: Any, mock_genai: Any
     ) -> None:
@@ -507,7 +508,7 @@ class TestCalculateCodeQuality:
         score = calculate_code_quality(None, "model-name")
         assert score == 0.6
 
-    @patch("src.code_quality.find_code_repo_via_genai")
+    @patch("app.workers.ingestion_worker.src.code_quality.find_code_repo_via_genai")
     def test_no_repo_found(self, mock_genai: Any) -> None:
         """Test when no repository found."""
         mock_genai.return_value = None
@@ -519,9 +520,9 @@ class TestCalculateCodeQuality:
 class TestIntegration:
     """Integration tests for code quality module."""
 
-    @patch("src.code_quality.requests.post")
-    @patch("src.code_quality.git.Repo.clone_from")
-    @patch("src.code_quality.run_flake8_on_repo")
+    @patch("app.workers.ingestion_worker.src.code_quality.requests.post")
+    @patch("app.workers.ingestion_worker.src.code_quality.git.Repo.clone_from")
+    @patch("app.workers.ingestion_worker.src.code_quality.run_flake8_on_repo")
     def test_full_workflow_with_genai(
         self, mock_flake8: Any, mock_clone: Any, mock_post: Any
     ) -> None:
@@ -551,7 +552,7 @@ class TestIntegration:
         assert 0.0 <= score <= 1.0
         assert latency >= 0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_output_with_error_pattern(
         self, mock_run: Any, tmp_path: Any
     ) -> None:
@@ -566,7 +567,7 @@ class TestIntegration:
         score, latency = run_flake8_on_repo(str(tmp_path))
         assert 0.0 <= score <= 1.0
 
-    @patch("src.code_quality.subprocess.run")
+    @patch("app.workers.ingestion_worker.src.code_quality.subprocess.run")
     def test_flake8_empty_output(self, mock_run: Any, tmp_path: Any) -> None:
         """Test flake8 with empty output."""
         mock_result = Mock()

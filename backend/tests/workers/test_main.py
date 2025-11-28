@@ -6,14 +6,14 @@ import tempfile
 from typing import Any
 from unittest.mock import Mock, patch
 
-from src.main import (
+from app.workers.ingestion_worker.src.main import (
     calculate_scores,
     main,
     parseUrlFile,
     validate_github_token,
     validate_log_file,
 )
-from src.url import Url, UrlCategory, UrlSet
+from app.workers.ingestion_worker.src.url import Url, UrlCategory, UrlSet
 
 
 class TestValidateGithubToken:
@@ -24,7 +24,7 @@ class TestValidateGithubToken:
         """Test that missing token returns True (rate-limited access)."""
         assert validate_github_token() is True
 
-    @patch("src.main.requests.get")
+    @patch("app.workers.ingestion_worker.src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "valid_token"})
     def test_valid_token(self, mock_get: Any) -> None:
         """Test that valid token returns True."""
@@ -34,7 +34,7 @@ class TestValidateGithubToken:
 
         assert validate_github_token() is True
 
-    @patch("src.main.requests.get")
+    @patch("app.workers.ingestion_worker.src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "invalid_token"})
     def test_invalid_token(self, mock_get: Any) -> None:
         """Test that invalid token returns False."""
@@ -44,7 +44,7 @@ class TestValidateGithubToken:
 
         assert validate_github_token() is False
 
-    @patch("src.main.requests.get")
+    @patch("app.workers.ingestion_worker.src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "token"})
     def test_token_validation_network_error(self, mock_get: Any) -> None:
         """Test that network errors don't block execution."""
@@ -52,7 +52,7 @@ class TestValidateGithubToken:
 
         assert validate_github_token() is True
 
-    @patch("src.main.requests.get")
+    @patch("app.workers.ingestion_worker.src.main.requests.get")
     @patch.dict(os.environ, {"GITHUB_TOKEN": "token"})
     def test_token_validation_other_status(self, mock_get: Any) -> None:
         """Test that other status codes allow continuation."""
@@ -211,10 +211,10 @@ class TestParseUrlFile:
 class TestCalculateScores:
     """Tests for calculate_scores function."""
 
-    @patch("src.main.score_url")
+    @patch("app.workers.ingestion_worker.src.main.score_url")
     def test_calculate_scores_valid_urls(self, mock_score: Any) -> None:
         """Test calculate_scores with valid URLs."""
-        from src.scorer import ScoreResult
+        from app.workers.ingestion_worker.src.scorer import ScoreResult
 
         mock_score.return_value = ScoreResult(
             url="https://huggingface.co/model",
@@ -235,7 +235,7 @@ class TestCalculateScores:
         )
         assert result["name"] == "test-model"
 
-    @patch("src.main.score_url")
+    @patch("app.workers.ingestion_worker.src.main.score_url")
     def test_calculate_scores_invalid_urls(self, mock_score: Any) -> None:
         """Test calculate_scores with invalid URLs."""
         urlset = UrlSet(None, None, Url("https://invalid.com", UrlCategory.INVALID))
@@ -245,10 +245,10 @@ class TestCalculateScores:
         assert result["net_score"] == 0.0
         assert "error" in result
 
-    @patch("src.main.score_url")
+    @patch("app.workers.ingestion_worker.src.main.score_url")
     def test_calculate_scores_mixed_urls(self, mock_score: Any) -> None:
         """Test calculate_scores with mix of valid and invalid URLs."""
-        from src.scorer import ScoreResult
+        from app.workers.ingestion_worker.src.scorer import ScoreResult
 
         mock_score.return_value = ScoreResult(
             url="https://huggingface.co/model",
@@ -275,11 +275,11 @@ class TestCalculateScores:
 class TestMain:
     """Tests for main function."""
 
-    @patch("src.main.validate_log_file")
-    @patch("src.main.validate_github_token")
-    @patch("src.main.parseUrlFile")
-    @patch("src.main.calculate_scores")
-    @patch("src.log.loggerInstance.logger")
+    @patch("app.workers.ingestion_worker.src.main.validate_log_file")
+    @patch("app.workers.ingestion_worker.src.main.validate_github_token")
+    @patch("app.workers.ingestion_worker.src.main.parseUrlFile")
+    @patch("app.workers.ingestion_worker.src.main.calculate_scores")
+    @patch("app.workers.ingestion_worker.src.log.loggerInstance.logger")
     def test_main_success(
         self,
         mock_logger: Any,
@@ -304,8 +304,8 @@ class TestMain:
             result = main()
             assert result == 0
 
-    @patch("src.main.validate_log_file")
-    @patch("src.log.loggerInstance.logger")
+    @patch("app.workers.ingestion_worker.src.main.validate_log_file")
+    @patch("app.workers.ingestion_worker.src.log.loggerInstance.logger")
     def test_main_invalid_log_file(self, mock_logger: Any, mock_log: Any) -> None:
         """Test main with invalid log file."""
         mock_log.return_value = False
@@ -314,9 +314,9 @@ class TestMain:
             result = main()
             assert result == 1
 
-    @patch("src.main.validate_log_file")
-    @patch("src.main.validate_github_token")
-    @patch("src.log.loggerInstance.logger")
+    @patch("app.workers.ingestion_worker.src.main.validate_log_file")
+    @patch("app.workers.ingestion_worker.src.main.validate_github_token")
+    @patch("app.workers.ingestion_worker.src.log.loggerInstance.logger")
     def test_main_invalid_token(
         self, mock_logger: Any, mock_token: Any, mock_log: Any
     ) -> None:
@@ -328,9 +328,9 @@ class TestMain:
             result = main()
             assert result == 1
 
-    @patch("src.main.validate_log_file")
-    @patch("src.main.validate_github_token")
-    @patch("src.log.loggerInstance.logger")
+    @patch("app.workers.ingestion_worker.src.main.validate_log_file")
+    @patch("app.workers.ingestion_worker.src.main.validate_github_token")
+    @patch("app.workers.ingestion_worker.src.log.loggerInstance.logger")
     def test_main_missing_url_file_argument(
         self, mock_logger: Any, mock_token: Any, mock_log: Any
     ) -> None:
@@ -342,9 +342,9 @@ class TestMain:
             result = main()
             assert result == 1
 
-    @patch("src.main.validate_log_file")
-    @patch("src.main.validate_github_token")
-    @patch("src.log.loggerInstance.logger")
+    @patch("app.workers.ingestion_worker.src.main.validate_log_file")
+    @patch("app.workers.ingestion_worker.src.main.validate_github_token")
+    @patch("app.workers.ingestion_worker.src.log.loggerInstance.logger")
     def test_main_too_many_arguments(
         self, mock_logger: Any, mock_token: Any, mock_log: Any
     ) -> None:

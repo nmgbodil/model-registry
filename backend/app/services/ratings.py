@@ -44,7 +44,7 @@ def get_model_rating(artifact_id: int) -> ModelRating:
                 raise ArtifactNotFoundError("Artifact not found.")
             if not artifact.type or artifact.type != "model":
                 raise ArtifactNotModelError("Artifact is not a model.")
-            if artifact.status != ArtifactStatus.ACCEPTED:
+            if artifact.status != ArtifactStatus.accepted:
                 raise RatingNotFoundError(
                     "Rating not found for artifact or artifact not eligible."
                 )

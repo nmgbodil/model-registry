@@ -1,6 +1,6 @@
 """Tests for license scoring."""
 
-from src.license import calculate_license_score
+from app.workers.ingestion_worker.src.license import calculate_license_score
 
 
 def test_score_license_empty() -> None:

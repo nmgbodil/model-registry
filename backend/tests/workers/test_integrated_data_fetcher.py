@@ -3,9 +3,11 @@
 from typing import Any, Dict
 from unittest.mock import Mock
 
-from src.integrated_data_fetcher import IntegratedDataFetcher
-from src.log import loggerInstance
-from src.log.logger import Logger
+from app.workers.ingestion_worker.src.integrated_data_fetcher import (
+    IntegratedDataFetcher,
+)
+from app.workers.ingestion_worker.src.log import loggerInstance
+from app.workers.ingestion_worker.src.log.logger import Logger
 
 loggerInstance.logger = Logger()
 

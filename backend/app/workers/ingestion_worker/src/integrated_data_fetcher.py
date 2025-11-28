@@ -4,7 +4,8 @@ import re
 from typing import Any, Dict, List, Optional
 
 import requests
-from src.url import Url, UrlCategory
+
+from app.workers.ingestion_worker.src.url import Url, UrlCategory
 
 from .log import loggerInstance
 

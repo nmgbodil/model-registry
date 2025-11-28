@@ -2,8 +2,39 @@
 
 from __future__ import annotations
 
+from typing import Optional, Tuple
+from urllib.parse import urlparse
+
 from .db.models import Artifact, Rating
 from .schemas.model_rating import ModelRating, ModelSizeScore
+
+
+def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
+    """Return (is_hf, kind, repo_id) where kind.
+
+    ∈ {"model","dataset","space","unknown"}.
+    """
+    try:
+        p = urlparse(url)
+    except Exception:
+        return (False, "unknown", None)
+    if p.scheme not in {"http", "https"}:
+        return (False, "unknown", None)
+    if p.netloc not in {"huggingface.co", "www.huggingface.co"}:
+        return (False, "unknown", None)
+
+    parts = [seg for seg in p.path.split("/") if seg]
+    if not parts:
+        return (True, "unknown", None)
+
+    if parts[0] == "datasets" and len(parts) >= 3:
+        return (True, "dataset", f"{parts[1]}/{parts[2]}")
+    elif parts[0] == "spaces" and len(parts) >= 3:
+        return (True, "space", f"{parts[1]}/{parts[2]}")
+    elif len(parts) >= 2:
+        return (True, "model", f"{parts[0]}/{parts[1]}")
+    else:
+        return (True, "unknown", None)
 
 
 def build_model_rating_from_record(artifact: Artifact, rating: Rating) -> ModelRating:

@@ -4,7 +4,8 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
-from src.url import Url, UrlCategory, determine_category
+
+from app.workers.ingestion_worker.src.url import Url, UrlCategory, determine_category
 
 
 class TestDetermineCategory:

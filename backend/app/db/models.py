@@ -61,9 +61,9 @@ class User(Base):
 class ArtifactStatus(PyEnum):
     """Lifecycle status for an artifact after rating/evaluation."""
 
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    REJECTED = "rejected"
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
 
 
 class Artifact(Base):
@@ -86,7 +86,7 @@ class Artifact(Base):
     status: Mapped[ArtifactStatus] = mapped_column(
         Enum(ArtifactStatus, name="artifact_status", native_enum=True),
         nullable=False,
-        default=ArtifactStatus.PENDING,
+        default=ArtifactStatus.pending,
     )
 
     dataset_id: Mapped[Optional[int]] = mapped_column(

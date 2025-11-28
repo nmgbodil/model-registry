@@ -41,8 +41,8 @@ This implementation adds parallel computation capabilities to the trustworthines
 ## Usage Example
 
 ```python
-from src.scorer import compute_all_metrics_parallel
-from src.url import UrlCategory
+from app.workers.ingestion_worker.src.scorer import compute_all_metrics_parallel
+from app.workers.ingestion_worker.src.url import UrlCategory
 
 # Test data
 data = {

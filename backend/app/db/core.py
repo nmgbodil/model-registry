@@ -43,7 +43,6 @@ else:
         max_overflow=5,
         pool_pre_ping=True,  # drop dead conns
         pool_recycle=1800,  # avoid stale conns (secs)
-        execution_options={"stream_results": True},
     )
 
 # One engine per Gunicorn worker (module-level)

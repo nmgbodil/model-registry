@@ -6,7 +6,8 @@ import tempfile
 from typing import Iterator
 
 import pytest
-from src.log.logger import Logger
+
+from app.workers.ingestion_worker.src.log.logger import Logger
 
 
 @pytest.fixture

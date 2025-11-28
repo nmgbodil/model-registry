@@ -6,7 +6,7 @@ import pytest
 
 from app.db.models import ArtifactStatus
 from app.services import ratings as ratings_service
-from tests.ratings_common import fake_session_cm, make_artifact, make_rating
+from tests.utils import fake_session_cm, make_artifact, make_rating
 
 
 class TestGetModelRating:
@@ -21,7 +21,7 @@ class TestGetModelRating:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Return rating when artifact exists and has a rating row."""
-        artifact = make_artifact(1, "demo-model", "model", ArtifactStatus.ACCEPTED)
+        artifact = make_artifact(1, "demo-model", "model", ArtifactStatus.accepted)
         rating = make_rating(artifact.id)
 
         monkeypatch.setattr(
@@ -55,7 +55,7 @@ class TestGetModelRating:
 
     def test_raises_when_not_a_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Reject artifacts that are not models."""
-        artifact = make_artifact(1, "not-model", "dataset", ArtifactStatus.ACCEPTED)
+        artifact = make_artifact(1, "not-model", "dataset", ArtifactStatus.accepted)
         monkeypatch.setattr(
             ratings_service, "get_artifact_by_id", lambda session, aid: artifact
         )
@@ -68,7 +68,7 @@ class TestGetModelRating:
 
     def test_raises_when_not_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Reject artifacts that are not yet accepted."""
-        artifact = make_artifact(1, "pending-model", "model", ArtifactStatus.PENDING)
+        artifact = make_artifact(1, "pending-model", "model", ArtifactStatus.pending)
         monkeypatch.setattr(
             ratings_service, "get_artifact_by_id", lambda session, aid: artifact
         )
@@ -81,7 +81,7 @@ class TestGetModelRating:
 
     def test_raises_when_no_rating_row(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raise when artifact is eligible but missing a rating row."""
-        artifact = make_artifact(1, "demo", "model", ArtifactStatus.ACCEPTED)
+        artifact = make_artifact(1, "demo", "model", ArtifactStatus.accepted)
         monkeypatch.setattr(
             ratings_service, "get_artifact_by_id", lambda session, aid: artifact
         )

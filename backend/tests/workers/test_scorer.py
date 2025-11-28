@@ -3,9 +3,13 @@
 from typing import Any, Dict, cast
 from unittest.mock import Mock, patch
 
-from src.performance_claims import calculate_performance_claims_with_timing
-from src.ramp_up_time import calculate_ramp_up_time_with_timing
-from src.scorer import (
+from app.workers.ingestion_worker.src.performance_claims import (
+    calculate_performance_claims_with_timing,
+)
+from app.workers.ingestion_worker.src.ramp_up_time import (
+    calculate_ramp_up_time_with_timing,
+)
+from app.workers.ingestion_worker.src.scorer import (
     ScoreResult,
     calculate_code_bus_factor,
     calculate_dataset_bus_factor,
@@ -19,7 +23,7 @@ from src.scorer import (
     score_model,
     score_url,
 )
-from src.url import UrlCategory
+from app.workers.ingestion_worker.src.url import UrlCategory
 
 
 class TestScoreResult:
@@ -64,7 +68,7 @@ class TestScoreResult:
 class TestMakeRequest:
     """Tests for HTTP request wrapper."""
 
-    @patch("src.scorer.requests.get")
+    @patch("app.workers.ingestion_worker.src.scorer.requests.get")
     def test_successful_request(self, mock_get: Any) -> None:
         """Return JSON when request succeeds."""
         mock_response = Mock()
@@ -76,7 +80,7 @@ class TestMakeRequest:
         assert result == {"data": "test"}
         mock_get.assert_called_once()
 
-    @patch("src.scorer.requests.get")
+    @patch("app.workers.ingestion_worker.src.scorer.requests.get")
     def test_failed_request(self, mock_get: Any) -> None:
         """Return None on exception."""
         mock_get.side_effect = Exception("Network error")
@@ -84,7 +88,7 @@ class TestMakeRequest:
         result = make_request("https://example.com")
         assert result is None
 
-    @patch("src.scorer.requests.get")
+    @patch("app.workers.ingestion_worker.src.scorer.requests.get")
     def test_request_timeout(self, mock_get: Any) -> None:
         """Return None on timeout."""
         mock_get.side_effect = TimeoutError()
@@ -170,7 +174,7 @@ class TestScoreDataset:
         assert result.score == 0.0
         assert "error" in result.details
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_dataset_no_data(self, mock_request: Any) -> None:
         """Test scoring dataset with no API data."""
         mock_request.return_value = None
@@ -179,7 +183,7 @@ class TestScoreDataset:
         assert result.category == UrlCategory.DATASET
         assert result.details["name"] == "squad"
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_dataset_with_data(self, mock_request: Any) -> None:
         """Test scoring dataset with API data."""
         mock_request.return_value = {
@@ -193,7 +197,7 @@ class TestScoreDataset:
         assert result.details["downloads"] == 50000
         assert result.details["likes"] == 100
 
-    # @patch("src.scorer.make_request")
+    # @patch("app.workers.ingestion_worker.src.scorer.make_request")
     # def test_score_dataset_high_downloads(self, mock_request):
     #     """Test scoring dataset with high downloads"""
     #     mock_request.return_value = {
@@ -205,7 +209,7 @@ class TestScoreDataset:
     #     result = score_dataset("https://huggingface.co/datasets/test")
     #     assert result.score >= 7.0
 
-    # @patch("src.scorer.make_request")
+    # @patch("app.workers.ingestion_worker.src.scorer.make_request")
     # def test_score_dataset_low_metrics(self, mock_request):
     #     """Test scoring dataset with low metrics"""
     #     mock_request.return_value = {
@@ -229,7 +233,7 @@ class TestScoreModel:
         assert result.score == 0.0
         assert "error" in result.details
 
-    # @patch("src.scorer.make_request")
+    # @patch("app.workers.ingestion_worker.src.scorer.make_request")
     # def test_score_model_no_data(self, mock_request):
     #     """Test scoring model with no API data"""
     #     mock_request.return_value = None
@@ -239,7 +243,7 @@ class TestScoreModel:
     #     assert result.score == 2.0
     #     assert result.details["name"] == "google-bert/bert-case-uncased"
 
-    # @patch("src.scorer.make_request")
+    # @patch("app.workers.ingestion_worker.src.scorer.make_request")
     # def test_score_model_with_data(self, mock_request):
     #     """Test scoring model with API data"""
     #     mock_request.return_value = {
@@ -256,7 +260,7 @@ class TestScoreModel:
     #     assert result.details["has_model_card"] == True
     #     assert result.details["pipeline_tag"] == "text-classification"
 
-    # @patch("src.scorer.make_request")
+    # @patch("app.workers.ingestion_worker.src.scorer.make_request")
     # def test_score_model_high_metrics(self, mock_request):
     #     """Test scoring model with high metrics"""
     #     mock_request.return_value = {
@@ -280,7 +284,7 @@ class TestScoreCode:
         assert result.score == 0.0
         assert "error" in result.details
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_code_no_data(self, mock_request: Any) -> None:
         """Test scoring code with no API data."""
         mock_request.return_value = None
@@ -290,7 +294,7 @@ class TestScoreCode:
         assert result.score == 2.0
         assert result.details["name"] == "user/repo"
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_code_with_data(self, mock_request: Any) -> None:
         """Test scoring code with API data."""
         mock_request.return_value = {
@@ -309,7 +313,7 @@ class TestScoreCode:
         assert result.details["has_license"] is True
         assert result.details["language"] == "Python"
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_code_high_stars(self, mock_request: Any) -> None:
         """Test scoring code with high star count."""
         mock_request.return_value = {
@@ -323,7 +327,7 @@ class TestScoreCode:
         result = score_code("https://github.com/popular/repo")
         assert result.score >= 8.0
 
-    @patch("src.scorer.make_request")
+    @patch("app.workers.ingestion_worker.src.scorer.make_request")
     def test_score_code_low_metrics(self, mock_request: Any) -> None:
         """Test scoring code with low metrics."""
         mock_request.return_value = {
@@ -342,7 +346,7 @@ class TestScoreCode:
 class TestScoreUrl:
     """Tests for score_url function."""
 
-    @patch("src.scorer.score_dataset")
+    @patch("app.workers.ingestion_worker.src.scorer.score_dataset")
     def test_score_url_dataset(self, mock_score: Any) -> None:
         """Test scoring dataset URL."""
         mock_result = ScoreResult(
@@ -359,7 +363,7 @@ class TestScoreUrl:
         assert result.category == UrlCategory.DATASET
         mock_score.assert_called_once()
 
-    @patch("src.scorer.score_model")
+    @patch("app.workers.ingestion_worker.src.scorer.score_model")
     def test_score_url_model(self, mock_score: Any) -> None:
         """Test scoring model URL."""
         mock_result = ScoreResult(
@@ -376,7 +380,7 @@ class TestScoreUrl:
         assert result.category == UrlCategory.MODEL
         mock_score.assert_called_once()
 
-    @patch("src.scorer.score_code")
+    @patch("app.workers.ingestion_worker.src.scorer.score_code")
     def test_score_url_code(self, mock_score: Any) -> None:
         """Test scoring code URL."""
         mock_result = ScoreResult(
