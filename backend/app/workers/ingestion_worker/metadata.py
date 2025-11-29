@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 from typing import Optional, Tuple
+
+from app.prompts import build_dataset_code_extraction_prompt
+from app.services.artifacts.repo_view import RepoView
+from app.services.llm_client import LLMClient
 
 
 def get_parent_artifact(root: Path) -> Optional[int]:
@@ -33,7 +38,44 @@ def compute_size_bytes(zip_path: Path) -> Optional[int]:
         return None
 
 
-def get_dataset_and_code_ids(root: Path) -> Tuple[Optional[int], Optional[int]]:
-    """Retrieve dataset and code identifiers related to the artifact."""
-    # TODO: implement dataset/code ID resolution
-    return None, None
+def _read_readme(repo: RepoView) -> Optional[str]:
+    for candidate in ("README.md", "README.MD", "README", "README.txt"):
+        try:
+            return repo.read_text(candidate)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None
+    return None
+
+
+def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
+    """Retrieve dataset reference and code URL via LLM extraction from README."""
+    readme = _read_readme(repo)
+    if not readme:
+        return None, None
+
+    prompt = build_dataset_code_extraction_prompt(readme)
+    model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+    client = LLMClient(model=model)
+
+    try:
+        result = client.invoke_json(prompt)
+    except Exception:
+        return None, None
+
+    dataset_ref = None
+    code_url = None
+
+    if isinstance(result, dict):
+        primary = result.get("primary_dataset")
+        if isinstance(primary, str) and primary.strip():
+            dataset_ref = primary.strip()
+
+        code_repos = result.get("code_repos")
+        if isinstance(code_repos, list) and code_repos:
+            first = code_repos[0]
+            if isinstance(first, str) and first.strip():
+                code_url = first.strip()
+
+    return dataset_ref, code_url

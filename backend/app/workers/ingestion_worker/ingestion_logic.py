@@ -19,6 +19,7 @@ from app.schemas.model_rating import ModelRating
 from app.services.artifacts.code_fetcher import open_codebase
 from app.services.artifacts.dataset_fetcher import HFDatasetFetcher
 from app.services.artifacts.model_fetcher import HFModelFetcher
+from app.services.artifacts.repo_view import RepoView
 from app.services.storage import upload_artifact
 from app.utils import _is_hf_url, build_model_rating_from_record
 from app.workers.ingestion_worker import metadata as ingestion_metadata
@@ -108,18 +109,18 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
     tmp_dir = tempfile.mkdtemp(prefix="artifact_fetch_")
     archive_base = os.path.join(tmp_dir, f"{artifact.name}-full")
 
-    def _finalize_from_root(root: Path) -> Tuple[str, Dict[str, Any]]:
-        archive_path = shutil.make_archive(archive_base, "zip", root_dir=root)
+    def _finalize_from_repo(repo: RepoView) -> Tuple[str, Dict[str, Any]]:
+        archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
-        dataset_id, code_id = ingestion_metadata.get_dataset_and_code_ids(root)
+        dataset_ref, code_url = ingestion_metadata.get_dataset_and_code(repo)
         artifact_metadata: Dict[str, Any] = {
-            "parent_artifact_id": ingestion_metadata.get_parent_artifact(root),
+            "parent_artifact_id": ingestion_metadata.get_parent_artifact(repo.root),
             "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
                 archive_path_path
             ),
             "size_bytes": ingestion_metadata.compute_size_bytes(archive_path_path),
-            "dataset_id": dataset_id,
-            "code_id": code_id,
+            "dataset_ref": dataset_ref,
+            "code_url": code_url,
         }
         return archive_path, artifact_metadata
 
@@ -127,17 +128,17 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "model" and repo_id:
             with HFModelFetcher(repo_id) as repo:
-                return _finalize_from_root(repo.root)
+                return _finalize_from_repo(repo)
 
     if artifact.type == "dataset":
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "dataset" and repo_id:
             with HFDatasetFetcher(repo_id) as repo:
-                return _finalize_from_root(repo.root)
+                return _finalize_from_repo(repo)
 
     # treat anything else as code
     with open_codebase(artifact.source_url) as repo:
-        return _finalize_from_root(repo.root)
+        return _finalize_from_repo(repo)
 
 
 def ingest_artifact(artifact_id: int) -> ArtifactStatus:
