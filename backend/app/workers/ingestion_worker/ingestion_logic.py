@@ -110,11 +110,14 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
 
     def _finalize_from_root(root: Path) -> Tuple[str, Dict[str, Any]]:
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=root)
+        archive_path_path = Path(archive_path)
         dataset_id, code_id = ingestion_metadata.get_dataset_and_code_ids(root)
         artifact_metadata: Dict[str, Any] = {
             "parent_artifact_id": ingestion_metadata.get_parent_artifact(root),
-            "checksum_sha256": ingestion_metadata.compute_checksum_sha256(root),
-            "size_bytes": ingestion_metadata.compute_size_bytes(Path(archive_path)),
+            "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
+                archive_path_path
+            ),
+            "size_bytes": ingestion_metadata.compute_size_bytes(archive_path_path),
             "dataset_id": dataset_id,
             "code_id": code_id,
         }
