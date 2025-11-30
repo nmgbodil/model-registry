@@ -108,7 +108,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-dist
-          path: ./frontend_dist
+          path: ./artifacts/frontend-dist
           run-id: ${{ github.event.workflow_run.id }}
           repository: ${{ github.repository }}
           github-token: ${{ github.token }}
@@ -133,14 +133,26 @@ jobs:
           source: "./wheel"                   # uploads the folder with .whl(s)
           target: "~/tmp"
       
+      - name: check files in artifacts folder
+        run: |
+          ls -la ./artifacts
+      
+      # - name: Ensure target dir exists
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_KEY }}
+      #     script: mkdir -p ~/deployments/artifacts/frontend-dist
+
       - name: Upload frontend to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./frontend_dist/*"
-          target: "~/deployments/frontend_dist"
+          source: "./artifacts/frontend-dist"
+          target: "~/deployments"
 
 
       # 4) SSH into EC2 and deploy
@@ -169,7 +181,7 @@ jobs:
             sudo mkdir -p /srv/model-registry/www
 
             # IMPORTANT: trailing slash on the SOURCE = copy CONTENTS, not the folder itself
-            sudo rsync -avz --delete ~/deployments/frontend_dist/* /srv/model-registry/www/
+            sudo rsync -avz --delete ~/deployments/artifacts/frontend-dist/* /srv/model-registry/www/
 
             # (optional) ownership for nginx
             if id www-data >/dev/null 2>&1; then
