@@ -7,18 +7,23 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.dals.artifacts import get_artifact_by_id, update_artifact_attributes
+from app.dals.artifacts import (
+    get_artifact_by_id,
+    get_artifact_id_by_ref,
+    get_artifacts_with_parent_ref,
+    update_artifact_attributes,
+)
 from app.dals.ratings import create_rating
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating
 from app.services.artifacts.code_fetcher import open_codebase
 from app.services.artifacts.dataset_fetcher import HFDatasetFetcher
-from app.services.artifacts.model_fetcher import HFModelFetcher
+from app.services.artifacts.model_fetcher import MODEL_PREVIEW_ALLOW, HFModelFetcher
 from app.services.artifacts.repo_view import RepoView
 from app.services.storage import upload_artifact
 from app.utils import _is_hf_url, build_model_rating_from_record
@@ -60,11 +65,43 @@ def normalize_rating_payload(raw_rating: Mapping[str, Any]) -> Dict[str, Any]:
     return normalized
 
 
-def _build_urlset_for_artifact(artifact_link: str) -> UrlSet:
-    """Create a UrlSet with only the model URL populated."""
+def _build_urlset_for_artifact(
+    artifact_link: str,
+    dataset_ref: Optional[str] = None,
+    code_url: Optional[str] = None,
+) -> UrlSet:
+    """Create a UrlSet using available model, dataset, and code references."""
     model_url = Url(artifact_link)
-    # TODO: Populate dataset and code URLs when artifact relationships are present.
-    return UrlSet(None, None, model_url)
+    dataset_url = Url(dataset_ref) if dataset_ref else None
+    code_repo_url = Url(code_url) if code_url else None
+    return UrlSet(code_repo_url, dataset_url, model_url)
+
+
+def _collect_preview_metadata(artifact: Artifact) -> Dict[str, Any]:
+    """Fetch lightweight repo contents to extract references before rating."""
+    if artifact.type != "model":
+        return {}
+
+    def _extract(repo: RepoView) -> Dict[str, Any]:
+        dataset_ref, code_url = ingestion_metadata.get_dataset_and_code(repo)
+        return {
+            "dataset_ref": dataset_ref,
+            "code_url": code_url,
+        }
+
+    try:
+        if artifact.source_url:
+            is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
+            if is_hf and kind == "model" and repo_id:
+                with HFModelFetcher(
+                    repo_id, allow_patterns=MODEL_PREVIEW_ALLOW
+                ) as repo:
+                    return _extract(repo)
+
+        # If non-HF or fetch fails, skip preview metadata to avoid heavy downloads.
+        return {}
+    except Exception:
+        return {}
 
 
 def _persist_rating(
@@ -101,6 +138,18 @@ def _is_ingestible(rating: Mapping[str, Any], threshold: float = 0.5) -> bool:
     return True
 
 
+def _backfill_children(session: Session, artifact: Artifact) -> None:
+    """Populate parent_artifact_id for children that referenced this artifact by ref."""
+    lineage_refs = [artifact.name]
+    if artifact.source_url:
+        lineage_refs.append(artifact.source_url)
+
+    for ref in lineage_refs:
+        children = get_artifacts_with_parent_ref(session, ref, exclude_id=artifact.id)
+        for child in children:
+            update_artifact_attributes(session, child, parent_artifact_id=artifact.id)
+
+
 def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
     """Fetch artifact contents based on type and return a zip file path and metadata."""
     if not artifact.source_url:
@@ -112,15 +161,12 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
     def _finalize_from_repo(repo: RepoView) -> Tuple[str, Dict[str, Any]]:
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
-        dataset_ref, code_url = ingestion_metadata.get_dataset_and_code(repo)
         artifact_metadata: Dict[str, Any] = {
-            "parent_artifact_id": ingestion_metadata.get_parent_artifact(repo.root),
+            "parent_artifact_ref": ingestion_metadata.get_parent_artifact(repo),
             "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
                 archive_path_path
             ),
             "size_bytes": ingestion_metadata.compute_size_bytes(archive_path_path),
-            "dataset_ref": dataset_ref,
-            "code_url": code_url,
         }
         return archive_path, artifact_metadata
 
@@ -152,24 +198,51 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
         if not artifact.source_url:
             raise ValueError("Artifact source_url is required to ingest.")
 
-        urlset = _build_urlset_for_artifact(artifact.source_url)
-        rating_payload = calculate_scores(urlset)
+        preview_metadata = _collect_preview_metadata(artifact)
 
-        if _is_ingestible(rating_payload):
-            archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
+        rating_payload: Optional[Mapping[str, Any]] = None
+        ingestible = True
+
+        if artifact.type == "model":
+            urlset = _build_urlset_for_artifact(
+                artifact.source_url,
+                dataset_ref=preview_metadata.get("dataset_ref"),
+                code_url=preview_metadata.get("code_url"),
+            )
+            rating_payload = calculate_scores(urlset)
+            ingestible = _is_ingestible(rating_payload)
+
+        if ingestible:
             try:
+                archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
                 s3_uri = upload_artifact(archive_path, artifact.id)
+                combined_metadata = {
+                    **{k: v for k, v in preview_metadata.items() if v is not None},
+                    **{k: v for k, v in artifact_metadata.items() if v is not None},
+                }
                 attrs: Dict[str, Any] = {
                     "status": ArtifactStatus.accepted,
                     "s3_key": s3_uri,
                 }
-                attrs.update(
-                    {k: v for k, v in artifact_metadata.items() if v is not None}
-                )
+
+                parent_ref = combined_metadata.get("parent_artifact_ref")
+                if parent_ref:
+                    # Link lineage: resolve the parent artifact by name or source_url
+                    # to build lineage graph
+                    parent_id = get_artifact_id_by_ref(
+                        session, parent_ref, exclude_id=artifact.id
+                    )
+                    if parent_id is not None:
+                        attrs["parent_artifact_id"] = parent_id
+
+                attrs.update(combined_metadata)
                 update_artifact_attributes(session, artifact, **attrs)
 
+                _backfill_children(session, artifact)
+
                 logger.debug("Collected artifact metadata: %s", artifact_metadata)
-                _persist_rating(session, artifact, rating_payload)
+                if rating_payload is not None:
+                    _persist_rating(session, artifact, rating_payload)
                 session.commit()
             finally:
                 if archive_path and os.path.exists(archive_path):

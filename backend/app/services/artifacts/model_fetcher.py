@@ -25,6 +25,10 @@ MODEL_ALLOW = [
     "pytorch_model.bin",
     "tf_model.h5",
 ]
+MODEL_PREVIEW_ALLOW = [
+    "README.md",
+    "README.*",
+]
 
 # NOTE: Move MAX_FILE_BYTES to .env
 MAX_FILE_BYTES = 512 * 1024 * 1024

@@ -97,6 +97,7 @@ class Artifact(Base):
         ForeignKey("artifacts.id", ondelete="SET NULL"),
         nullable=True,
     )
+    parent_artifact_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[Optional[str]] = mapped_column(
         String(36),

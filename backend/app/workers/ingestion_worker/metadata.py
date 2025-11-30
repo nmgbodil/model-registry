@@ -10,11 +10,25 @@ from typing import Optional, Tuple
 from app.prompts import build_dataset_code_extraction_prompt
 from app.services.artifacts.repo_view import RepoView
 from app.services.llm_client import LLMClient
+from app.utils import canonical_dataset_url
 
 
-def get_parent_artifact(root: Path) -> Optional[int]:
-    """Return the parent artifact identifier for the given repository."""
-    # TODO: implement parent artifact lookup
+def get_parent_artifact(repo: RepoView) -> Optional[str]:
+    """Return the base model reference from config.json if present in the repo."""
+    try:
+        data = repo.read_json("config.json")
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+
+    # Aligns with common Hugging Face configs where downstream models
+    # declare their base via this field.
+    parent_ref = data.get("base_model_name_or_path")
+    if isinstance(parent_ref, str) and parent_ref.strip():
+        return parent_ref.strip()
+
     return None
 
 
@@ -70,7 +84,8 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
     if isinstance(result, dict):
         primary = result.get("primary_dataset")
         if isinstance(primary, str) and primary.strip():
-            dataset_ref = primary.strip()
+            raw_ref = primary.strip()
+            dataset_ref = canonical_dataset_url(raw_ref) or raw_ref
 
         code_repos = result.get("code_repos")
         if isinstance(code_repos, list) and code_repos:
