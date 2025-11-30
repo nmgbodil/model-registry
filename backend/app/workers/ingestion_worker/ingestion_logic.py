@@ -110,7 +110,7 @@ def _persist_rating(
     """Normalize, save, and return the rating."""
     normalized = normalize_rating_payload(raw_rating)
     # TODO: Add logic in rate_worker to compute reproducibility, reviewedness,
-    # and tree_score metrics.
+    # and tree_score metrics. Review dataset related metrics due to ref.
     rating_record = create_rating(session, artifact.id, normalized)
     return build_model_rating_from_record(artifact, rating_record)
 
@@ -168,6 +168,12 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
             ),
             "size_bytes": ingestion_metadata.compute_size_bytes(archive_path_path),
         }
+
+        # Check for license for models only for now
+        if artifact.type == "model":
+            if license := ingestion_metadata.get_license(artifact.name) is not None:
+                artifact_metadata["license"] = license
+
         return archive_path, artifact_metadata
 
     if artifact.type == "model":
@@ -182,7 +188,6 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
             with HFDatasetFetcher(repo_id) as repo:
                 return _finalize_from_repo(repo)
 
-    # treat anything else as code
     with open_codebase(artifact.source_url) as repo:
         return _finalize_from_repo(repo)
 

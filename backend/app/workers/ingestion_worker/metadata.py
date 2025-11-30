@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 from typing import Optional, Tuple
 
 from app.prompts import build_dataset_code_extraction_prompt
+from app.services.artifacts.client import HFClient
 from app.services.artifacts.repo_view import RepoView
 from app.services.llm_client import LLMClient
 from app.utils import canonical_dataset_url
@@ -94,3 +96,31 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
                 code_url = first.strip()
 
     return dataset_ref, code_url
+
+
+def get_license(repo_id: str) -> Optional[str]:
+    """Return the license for a HF model by inspecting cardData or license tags."""
+    hf_client = HFClient()
+    try:
+        metadata = hf_client.get_model_metadata(repo_id)
+    except Exception:
+        return None
+
+    card = metadata.get("cardData")
+    if isinstance(card, dict):
+        license = card.get("license")
+        if isinstance(license, str) and license.strip():
+            return license.strip()
+
+    tags = metadata.get("tags")
+    if isinstance(tags, list):
+        for tag in tags:
+            if not isinstance(tag, str):
+                continue
+            match = re.search(r"license:(.+)", tag)
+            if match:
+                license = match.group(1).strip()
+                if license:
+                    return license
+
+    return None

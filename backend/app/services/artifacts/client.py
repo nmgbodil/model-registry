@@ -320,3 +320,11 @@ class GitLabClient(_Client):
         if not isinstance(data, list):
             return None
         return len(data)
+
+
+# if __name__ == "__main__":
+#     hf_client = HFClient()
+#     print(hf_client.get_model_metadata("google-bert/bert-base-uncased"))
+
+#     github_client = GitHubClient()
+#     print(github_client.get_metadata("https://github.com/google-research/bert"))
