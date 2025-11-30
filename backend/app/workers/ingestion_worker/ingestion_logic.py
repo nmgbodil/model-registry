@@ -171,7 +171,8 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
 
         # Check for license for models only for now
         if artifact.type == "model":
-            if license := ingestion_metadata.get_license(artifact.name) is not None:
+            license = ingestion_metadata.get_license(artifact.name)
+            if license:
                 artifact_metadata["license"] = license
 
         return archive_path, artifact_metadata

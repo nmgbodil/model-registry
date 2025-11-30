@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Tuple
+from unittest.mock import MagicMock, patch
 
 from app.services.artifacts.repo_view import RepoView
 from app.workers.ingestion_worker import metadata
@@ -111,3 +112,35 @@ def test_get_dataset_and_code_handles_llm_failures(
 
     assert dataset_ref is None
     assert code_url is None
+
+
+@patch(
+    "app.workers.ingestion_worker.metadata.HFClient.get_model_metadata",
+    return_value={"cardData": {"license": "apache-2.0"}},
+)
+def test_get_license_prefers_card_data(mock_get_model: MagicMock) -> None:
+    """Prefers license from cardData when present."""
+    assert metadata.get_license("model") == "apache-2.0"
+    mock_get_model.assert_called_once_with("model")
+
+
+@patch(
+    "app.workers.ingestion_worker.metadata.HFClient.get_model_metadata",
+    return_value={"tags": ["foo", "license:mit"]},
+)
+def test_get_license_falls_back_to_tags(mock_get_model: MagicMock) -> None:
+    """Falls back to tags prefixed with license: when cardData missing."""
+    assert metadata.get_license("model") == "mit"
+    mock_get_model.assert_called_once_with("model")
+
+
+@patch(
+    "app.workers.ingestion_worker.metadata.HFClient.get_model_metadata",
+    return_value={"tags": ["foo", "bar"]},
+)
+def test_get_license_returns_none_when_missing(
+    mock_get_model: MagicMock,
+) -> None:
+    """Returns None when no license info is available."""
+    assert metadata.get_license("model") is None
+    mock_get_model.assert_called_once_with("model")

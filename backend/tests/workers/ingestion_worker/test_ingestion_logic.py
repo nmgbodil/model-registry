@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from types import TracebackType
 from typing import Any, Dict, Generator, Mapping, Optional, Tuple
 
 from app.db.models import ArtifactStatus
@@ -96,7 +97,7 @@ def test_collect_preview_metadata_hf_model(monkeypatch: Any) -> None:
             self,
             exc_type: Optional[type[BaseException]],
             exc: Optional[BaseException],
-            tb: Optional[object],
+            tb: Optional[TracebackType],
         ) -> None:
             return None
 
@@ -174,6 +175,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
                 "parent_artifact_ref": "parent-ref",
                 "checksum_sha256": "abc",
                 "size_bytes": 10,
+                "license": "apache-2.0",
             },
         ),
     )
@@ -201,6 +203,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     assert updated_attrs["parent_artifact_id"] == 99
     assert updated_attrs["dataset_ref"] == "ds"
     assert updated_attrs["checksum_sha256"] == "abc"
+    assert updated_attrs["license"] == "apache-2.0"
     assert fake_session.committed is True
 
 
