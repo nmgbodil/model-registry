@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, Flask
 from flask_cors import CORS
 
+from app.api.artifact import bp_artifact
 from app.api.ratings import bp_ratings
 
 # from .api.routes_artifacts import bp_artifact, bp_artifacts
@@ -45,6 +46,7 @@ def create_app() -> Flask:
 
     # Register new blueprints under bp_master
     bp_master.register_blueprint(bp_ratings)
+    bp_master.register_blueprint(bp_artifact)
     # bp_master.register_blueprint(bp)
     # bp_master.register_blueprint(bp_artifacts)
     # bp_master.register_blueprint(bp_artifact)

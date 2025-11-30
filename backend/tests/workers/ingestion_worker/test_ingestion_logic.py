@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Dict, Generator, Mapping, Optional, Tuple
 
@@ -313,3 +314,48 @@ def test_ingest_artifact_accepts_non_model_without_rating(
     assert updated_attrs["s3_key"] == "s3://bucket/dataset"
     assert updated_attrs["checksum_sha256"] == "xyz"
     assert fake_session.committed is True
+
+
+def test_fetch_artifact_archive_includes_license(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """_fetch_artifact_archive should include license metadata for models."""
+    artifact = make_artifact(
+        artifact_id=4,
+        type_="model",
+        status=ArtifactStatus.pending,
+        source_url="https://huggingface.co/org/model",
+    )
+
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    (repo_root / "file.txt").write_text("data")
+
+    class FakeRepo:
+        def __init__(self, root: Path) -> None:
+            self.root = root
+
+    class FakeFetcher:
+        def __init__(self, repo_id: str) -> None:
+            self.repo_id = repo_id
+
+        def __enter__(self) -> FakeRepo:
+            return FakeRepo(repo_root)
+
+        def __exit__(
+            self,
+            exc_type: Optional[type[BaseException]],
+            exc: Optional[BaseException],
+            tb: Optional[TracebackType],
+        ) -> None:
+            return None
+
+    monkeypatch.setattr(logic, "HFModelFetcher", FakeFetcher)
+    monkeypatch.setattr(ingestion_metadata, "get_license", lambda repo_id: "apache-2.0")
+    monkeypatch.setattr(ingestion_metadata, "get_parent_artifact", lambda repo: None)
+
+    archive_path, meta = logic._fetch_artifact_archive(artifact)
+
+    assert archive_path.endswith(".zip")
+    assert meta["license"] == "apache-2.0"
+    assert "checksum_sha256" in meta and meta["checksum_sha256"]

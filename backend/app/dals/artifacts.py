@@ -48,3 +48,9 @@ def get_artifacts_with_parent_ref(
         stmt = stmt.where(Artifact.id != exclude_id)
 
     return list(session.scalars(stmt).all())
+
+
+def get_artifact_size(session: Session, artifact_id: int) -> Optional[int]:
+    """Return the size_bytes for a given artifact id."""
+    stmt = select(Artifact.size_bytes).where(Artifact.id == artifact_id)
+    return session.execute(stmt).scalar_one_or_none()

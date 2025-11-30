@@ -104,3 +104,21 @@ class TestArtifactsDal:
 
             assert {c.name for c in found} == {"child1", "child2"}
             assert {c.name for c in excluded} == {"child2"}
+
+    def test_get_artifact_size_returns_size_bytes(self) -> None:
+        """Should return the stored size_bytes for an artifact."""
+        with _db_session() as session:
+            art = Artifact(
+                name="sized",
+                type="model",
+                source_url="http://x",
+                size_bytes=123,
+            )
+            session.add(art)
+            session.commit()
+
+            size = artifacts_dal.get_artifact_size(session, art.id)
+            missing = artifacts_dal.get_artifact_size(session, 999)
+
+            assert size == 123
+            assert missing is None
