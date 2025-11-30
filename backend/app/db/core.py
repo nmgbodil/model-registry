@@ -4,15 +4,12 @@ import os
 from contextlib import contextmanager
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
-from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
-load_dotenv()
+APP_ENV = os.getenv("APP_ENV", "dev")
 
-APP_ENV = os.environ.get("APP_ENV", "dev")
-
-database_url = os.environ.get("DATABASE_URL")
+database_url = os.getenv("DATABASE_URL")
 
 if not database_url:
     if APP_ENV in {"dev", "test"}:
@@ -22,11 +19,11 @@ if not database_url:
             database_url = "sqlite:///dev.db"
     else:
         # Fallback: build Postgres URL from parts (for prod)
-        DB_USER = os.environ["DB_USER"]
-        DB_PASSWORD = os.environ["DB_PASSWORD"]
-        DB_HOST = os.environ["DB_HOST"]
-        DB_PORT = os.environ.get("DB_PORT", "5432")
-        DB_NAME = os.environ["DB_NAME"]
+        DB_USER = os.getenv("DB_USER")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_HOST = os.getenv("DB_HOST")
+        DB_PORT = os.getenv("DB_PORT", "5432")
+        DB_NAME = os.getenv("DB_NAME")
         database_url = (
             "postgresql+psycopg2://"
             f"{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"

@@ -2,16 +2,12 @@
 
 import os
 
-from dotenv import load_dotenv
-
 from . import create_app
-
-load_dotenv()
 
 app = create_app()
 
 if __name__ == "__main__":
-    if os.environ.get("APP_ENV") in ("dev", "test"):
+    if os.getenv("APP_ENV") in ("dev", "test"):
         try:
             from app.db.session import init_local_db
 
