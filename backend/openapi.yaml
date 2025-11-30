@@ -2,7 +2,7 @@
 openapi: 3.1.0
 info:
   title: ECE 461 - Fall 2025 - Project Phase 2
-  version: 3.4.6
+  version: 3.4.7
   description: |-
     API for ECE 461/Fall 2025/Project Phase 2: A Trustworthy Model Registry"
 
@@ -222,6 +222,9 @@ paths:
       responses:
         "200":
           description: Artifact is updated.
+        "202":
+          description: |-
+            Artifact ingest accepted but the rating pipeline deferred the evaluation. Use this when the package is stored but rating is performed asynchronously and the artifact is dropped silently if the rating later fails. Subsequent requests to `/rate` or any other endpoint with this artifact id should return 404 until a rating result exists.
         "400":
           description: "There is missing field(s) in the artifact_type or artifact_id or it is formed improperly, or is invalid."
         "403":
