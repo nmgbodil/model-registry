@@ -88,7 +88,7 @@ class Artifact(Base):
         default=ArtifactStatus.pending,
     )
 
-    dataset_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dataset_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     code_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

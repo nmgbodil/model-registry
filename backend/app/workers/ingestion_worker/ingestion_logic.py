@@ -67,14 +67,14 @@ def normalize_rating_payload(raw_rating: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _build_urlset_for_artifact(
     artifact_link: str,
-    dataset_ref: Optional[str] = None,
+    dataset_url: Optional[str] = None,
     code_url: Optional[str] = None,
 ) -> UrlSet:
     """Create a UrlSet using available model, dataset, and code references."""
-    model_url = Url(artifact_link)
-    dataset_url = Url(dataset_ref) if dataset_ref else None
-    code_repo_url = Url(code_url) if code_url else None
-    return UrlSet(code_repo_url, dataset_url, model_url)
+    _model_url = Url(artifact_link)
+    _dataset_url = Url(dataset_url) if dataset_url else None
+    _code_url = Url(code_url) if code_url else None
+    return UrlSet(_code_url, _dataset_url, _model_url)
 
 
 def _collect_preview_metadata(artifact: Artifact) -> Dict[str, Any]:
@@ -83,9 +83,9 @@ def _collect_preview_metadata(artifact: Artifact) -> Dict[str, Any]:
         return {}
 
     def _extract(repo: RepoView) -> Dict[str, Any]:
-        dataset_ref, code_url = ingestion_metadata.get_dataset_and_code(repo)
+        dataset_url, code_url = ingestion_metadata.get_dataset_and_code(repo)
         return {
-            "dataset_ref": dataset_ref,
+            "dataset_url": dataset_url,
             "code_url": code_url,
         }
 
@@ -212,7 +212,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
         if artifact.type == "model":
             urlset = _build_urlset_for_artifact(
                 artifact.source_url,
-                dataset_ref=preview_metadata.get("dataset_ref"),
+                dataset_url=preview_metadata.get("dataset_url"),
                 code_url=preview_metadata.get("code_url"),
             )
             rating_payload = calculate_scores(urlset)

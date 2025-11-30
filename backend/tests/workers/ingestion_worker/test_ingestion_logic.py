@@ -104,7 +104,7 @@ def test_collect_preview_metadata_hf_model(monkeypatch: Any) -> None:
     def fake_get_dataset_and_code(
         repo: Any,
     ) -> Tuple[Optional[str], Optional[str]]:
-        return ("dataset-ref", "code-url")
+        return ("dataset-url", "code-url")
 
     monkeypatch.setattr(logic, "HFModelFetcher", FakeFetcher)
     monkeypatch.setattr(
@@ -112,14 +112,14 @@ def test_collect_preview_metadata_hf_model(monkeypatch: Any) -> None:
     )
 
     meta = logic._collect_preview_metadata(artifact)
-    assert meta == {"dataset_ref": "dataset-ref", "code_url": "code-url"}
+    assert meta == {"dataset_url": "dataset-url", "code_url": "code-url"}
 
 
 def test_build_urlset_populates_optional_links() -> None:
     """UrlSet should contain provided dataset/code links when present."""  # noqa: D403
     urlset = logic._build_urlset_for_artifact(
         "https://huggingface.co/org/model",
-        dataset_ref="https://huggingface.co/datasets/org/data",
+        dataset_url="https://huggingface.co/datasets/org/data",
         code_url="https://github.com/org/repo",
     )
     assert urlset.model.link.endswith("/model")
@@ -163,7 +163,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         logic,
         "_collect_preview_metadata",
-        lambda a: {"dataset_ref": "ds", "code_url": "code"},
+        lambda a: {"dataset_url": "ds", "code_url": "code"},
     )
     monkeypatch.setattr(logic, "calculate_scores", lambda urlset: _good_rating())
     monkeypatch.setattr(
@@ -201,7 +201,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     assert updated_attrs["status"] == ArtifactStatus.accepted
     assert updated_attrs["s3_key"] == "s3://bucket/key"
     assert updated_attrs["parent_artifact_id"] == 99
-    assert updated_attrs["dataset_ref"] == "ds"
+    assert updated_attrs["dataset_url"] == "ds"
     assert updated_attrs["checksum_sha256"] == "abc"
     assert updated_attrs["license"] == "apache-2.0"
     assert fake_session.committed is True

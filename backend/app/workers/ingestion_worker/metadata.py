@@ -80,14 +80,14 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
     except Exception:
         return None, None
 
-    dataset_ref = None
+    dataset_url = None
     code_url = None
 
     if isinstance(result, dict):
         primary = result.get("primary_dataset")
         if isinstance(primary, str) and primary.strip():
             raw_ref = primary.strip()
-            dataset_ref = canonical_dataset_url(raw_ref) or raw_ref
+            dataset_url = _convert_dataset_ref_to_url(raw_ref)
 
         code_repos = result.get("code_repos")
         if isinstance(code_repos, list) and code_repos:
@@ -95,7 +95,18 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
             if isinstance(first, str) and first.strip():
                 code_url = first.strip()
 
-    return dataset_ref, code_url
+    return dataset_url, code_url
+
+
+def _convert_dataset_ref_to_url(ref: str) -> str:
+    if ref.startswith(("http://", "https://")):
+        dataset_url = ref
+    else:
+        dataset_url = (
+            canonical_dataset_url(ref) or f"https://huggingface.co/datasets/{ref}"
+        )
+
+    return dataset_url
 
 
 def get_license(repo_id: str) -> Optional[str]:
