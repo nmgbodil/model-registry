@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 """Flask app factory for the model registry."""
 
 from __future__ import annotations
@@ -10,6 +11,43 @@ from .api.routes_downloads import bp_downloads
 from .api.routes_health import bp
 from .config import get_settings
 from .db import Base, engine
+=======
+"""Flask app factory for the model registry."""
+
+from __future__ import annotations
+
+from flask import Blueprint, Flask
+from flask_cors import CORS
+
+from app.api.ratings import bp_ratings
+from app.api.routes_health import bp
+from app.config import get_settings
+from app.db.core import engine
+from app.db.models import Base
+
+
+def create_app() -> Flask:
+    """Create and configure the Flask application."""
+    settings = get_settings()
+    app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = settings.MAX_CONTENT_LENGTH
+
+    # CORS: allow cross-origin calls; we use X-Authorization.
+    CORS(
+        app,
+        # resources={r"/*": {"origins": "*"}},   # permissive for now
+        origins="*",
+        supports_credentials=False,  # required when origins="*"
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Authorization", "Authorization"],
+        expose_headers=["offset", "x-next-offset"],
+        max_age=600,
+    )
+
+    bp_master = Blueprint(
+        "master", __name__, url_prefix="/api"
+    )  # Blueprint for api prefix
+>>>>>>> Stashed changes
 
 
 def create_app() -> Flask:
