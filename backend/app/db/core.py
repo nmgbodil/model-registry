@@ -6,6 +6,7 @@ from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.pool import StaticPool
 
 APP_ENV = os.getenv("APP_ENV", "dev")
 
@@ -14,9 +15,11 @@ database_url = os.getenv("DATABASE_URL")
 if not database_url:
     if APP_ENV in {"dev", "test"}:
         if APP_ENV == "dev":
-            database_url = "sqlite:///:memory:"
-        else:
             database_url = "sqlite:///dev.db"
+            # database_url = "sqlite:///:memory:"
+        else:
+            database_url = "sqlite:///:memory:"
+            # database_url = "sqlite:///dev.db"
     else:
         # Fallback: build Postgres URL from parts (for prod)
         DB_USER = os.getenv("DB_USER")
@@ -34,6 +37,9 @@ engine_kwargs: dict[str, Any] = {"future": True}
 
 if database_url.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+    if database_url == "sqlite:///:memory:":
+        # Keep a single shared in-memory DB across the app
+        engine_kwargs["poolclass"] = StaticPool
 else:
     engine_kwargs.update(
         pool_size=5,  # t3.micro: keep small

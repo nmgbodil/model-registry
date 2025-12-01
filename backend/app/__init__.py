@@ -6,6 +6,7 @@ from flask import Blueprint, Flask
 from flask_cors import CORS
 
 from app.api.ratings import bp_ratings
+from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
 from app.config import get_settings
 from app.db.core import engine
@@ -37,6 +38,8 @@ def create_app() -> Flask:
     # Register new blueprints under bp_master
     bp_master.register_blueprint(bp_ratings)
     bp_master.register_blueprint(bp)
+    bp_master.register_blueprint(bp_artifacts)
+    bp_master.register_blueprint(bp_artifact)
 
     @bp_master.get("/")
     def hello() -> str:
