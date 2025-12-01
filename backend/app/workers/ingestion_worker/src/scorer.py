@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional
 # Import GitPython for Git operations
 import git
 import requests
+from dotenv import load_dotenv
 
 from .code_quality import calculate_code_quality_with_timing
 from .dataset_quality import calculate_dataset_quality_with_timing
@@ -23,6 +24,8 @@ from .net_score import calculate_net_score_with_timing
 from .performance_claims import calculate_performance_claims_with_timing
 from .ramp_up_time import calculate_ramp_up_time_with_timing
 from .url import UrlCategory
+
+load_dotenv()
 
 
 @dataclass

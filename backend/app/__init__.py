@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from http import HTTPStatus
 
+from dotenv import load_dotenv
 from flask import Blueprint, Flask, Response, jsonify
 from flask_cors import CORS
 
@@ -18,6 +19,7 @@ from app.config import get_settings
 
 def create_app() -> Flask:
     """Create and configure the Flask application."""
+    load_dotenv()
     settings = get_settings()
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = settings.MAX_CONTENT_LENGTH

@@ -8,6 +8,7 @@ from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, cast
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
 from flask import Blueprint, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 from werkzeug.utils import secure_filename
@@ -16,6 +17,8 @@ from app.db.models import Artifact
 from app.db.session import orm_session
 from app.utils import _is_hf_url
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
+
+load_dotenv()
 
 bp_artifacts = Blueprint("artifacts", __name__, url_prefix="/artifacts")
 bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")

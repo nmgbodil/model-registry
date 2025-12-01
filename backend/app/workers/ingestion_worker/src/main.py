@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, Optional
 
 import requests
+from dotenv import load_dotenv
 
 from .log import loggerInstance
 from .log.logger import Logger
@@ -16,6 +17,7 @@ from .url import Url, UrlCategory, UrlSet
 # Disable huggingface_hub progress bars globally
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+load_dotenv()
 
 
 def format_floats_to_2dp(obj: Any) -> Any:
