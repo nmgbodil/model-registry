@@ -34,6 +34,7 @@ def _seed_artifacts(rows: List[Dict[str, Any]]) -> None:
         for row in rows:
             session.add(Artifact(**row))
         session.flush()
+        session.commit()
 
 
 def test_artifacts_list_invalid_body_returns_400(client: FlaskClient) -> None:
