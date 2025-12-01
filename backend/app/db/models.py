@@ -88,9 +88,13 @@ class Artifact(Base):
         default=ArtifactStatus.pending,
     )
 
-    dataset_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    dataset_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
+    )
 
-    code_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    code_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("artifacts.id", ondelete="SET NULL"), nullable=True
+    )
 
     parent_artifact_id: Mapped[Optional[int]] = mapped_column(
         Integer,
@@ -126,6 +130,18 @@ class Artifact(Base):
         back_populates="parent_artifact",
         foreign_keys=[parent_artifact_id],
         cascade="all, delete-orphan",
+    )
+
+    dataset: Mapped[Optional["Artifact"]] = relationship(
+        "Artifact",
+        foreign_keys=[dataset_id],
+        remote_side=[id],
+    )
+
+    code: Mapped[Optional["Artifact"]] = relationship(
+        "Artifact",
+        foreign_keys=[code_id],
+        remote_side=[id],
     )
 
     rating: Mapped["Rating"] = relationship(

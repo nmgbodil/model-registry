@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from flask import Blueprint, Flask
 from flask_cors import CORS
 
@@ -65,5 +67,14 @@ def create_app() -> Flask:
     #     Base.metadata.create_all(bind=engine)
 
     app.register_blueprint(bp_master)
+
+    if os.getenv("APP_ENV", "dev") in ("dev", "test"):
+        print("hello")
+        try:
+            from app.db.session import init_local_db
+
+            init_local_db()
+        except Exception:
+            pass
 
     return app
