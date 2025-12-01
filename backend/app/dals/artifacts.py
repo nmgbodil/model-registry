@@ -48,3 +48,11 @@ def get_artifacts_with_parent_ref(
         stmt = stmt.where(Artifact.id != exclude_id)
 
     return list(session.scalars(stmt).all())
+
+
+def create_artifact(session: Session, **attrs: Any) -> Artifact:
+    """Create and persist a new artifact."""
+    artifact = Artifact(**attrs)
+    session.add(artifact)
+    session.flush()
+    return artifact

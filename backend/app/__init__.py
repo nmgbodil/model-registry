@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+import os
+
 from flask import Blueprint, Flask
 from flask_cors import CORS
 
+from app.api.artifact import bp_artifact as bp_artifact_cost
 from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
 from app.config import get_settings
-from app.db.core import engine
-from app.db.models import Base
 
 
 def create_app() -> Flask:
@@ -40,6 +41,7 @@ def create_app() -> Flask:
     bp_master.register_blueprint(bp)
     bp_master.register_blueprint(bp_artifacts)
     bp_master.register_blueprint(bp_artifact)
+    bp_master.register_blueprint(bp_artifact_cost)
 
     @bp_master.get("/")
     def hello() -> str:
@@ -51,7 +53,14 @@ def create_app() -> Flask:
         return "Hello World, welcome to Model Registry backend!"
 
     # Ensure DB tables exist in dev/test
-    Base.metadata.create_all(bind=engine)
+    if os.getenv("APP_ENV", "dev") in ("dev", "test"):
+        print("hello")
+        try:
+            from app.db.session import init_local_db
+
+            init_local_db()
+        except Exception:
+            pass
 
     app.register_blueprint(bp_master)
 

@@ -16,10 +16,8 @@ if not database_url:
     if APP_ENV in {"dev", "test"}:
         if APP_ENV == "dev":
             database_url = "sqlite:///dev.db"
-            # database_url = "sqlite:///:memory:"
         else:
             database_url = "sqlite:///:memory:"
-            # database_url = "sqlite:///dev.db"
     else:
         # Fallback: build Postgres URL from parts (for prod)
         DB_USER = os.getenv("DB_USER")
