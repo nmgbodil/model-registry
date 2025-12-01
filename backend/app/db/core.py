@@ -6,6 +6,7 @@ from typing import Any, Iterable, Iterator, Mapping, Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine, RowMapping
+from sqlalchemy.pool import StaticPool
 
 APP_ENV = os.getenv("APP_ENV", "dev")
 
@@ -34,6 +35,9 @@ engine_kwargs: dict[str, Any] = {"future": True}
 
 if database_url.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+    if database_url == "sqlite:///:memory:":
+        # Keep a single shared in-memory DB across the app
+        engine_kwargs["poolclass"] = StaticPool
 else:
     engine_kwargs.update(
         pool_size=5,  # t3.micro: keep small

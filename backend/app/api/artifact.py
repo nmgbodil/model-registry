@@ -14,7 +14,7 @@ from app.services.artifact_cost import (
     compute_artifact_cost,
 )
 
-bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
+bp_artifact = Blueprint("artifact_cost", __name__, url_prefix="/artifact")
 
 
 def _parse_dependency_flag(raw: str | None) -> bool:
