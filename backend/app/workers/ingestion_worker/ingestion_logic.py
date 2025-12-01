@@ -28,6 +28,8 @@ from app.services.artifacts.repo_view import RepoView
 from app.services.storage import upload_artifact
 from app.utils import _is_hf_url, build_model_rating_from_record
 from app.workers.ingestion_worker import metadata as ingestion_metadata
+from app.workers.ingestion_worker.src.log import loggerInstance
+from app.workers.ingestion_worker.src.log.logger import Logger
 from app.workers.ingestion_worker.src.main import calculate_scores
 from app.workers.ingestion_worker.src.url import Url, UrlSet
 
@@ -195,6 +197,8 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
 
 def ingest_artifact(artifact_id: int) -> ArtifactStatus:
     """Ingest a model artifact by scoring and updating its status."""
+    if loggerInstance.logger is None:
+        loggerInstance.logger = Logger()
     with orm_session() as session:
         artifact = get_artifact_by_id(session, artifact_id)
         if artifact is None:

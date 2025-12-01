@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, cast
@@ -13,6 +14,8 @@ from werkzeug.utils import secure_filename
 
 from app.db.models import Artifact
 from app.db.session import orm_session
+from app.utils import _is_hf_url
+from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
 bp_artifacts = Blueprint("artifacts", __name__, url_prefix="/artifacts")
 bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
@@ -57,6 +60,26 @@ def _compute_duplicate(
         or query.filter(Artifact.name == name).first()
     )
     return cast(Optional[Artifact], duplicate)
+
+
+def _trigger_ingestion_lambda(artifact_id: int) -> None:
+    """Trigger async ingestion via Lambda in prod environments."""
+    import json
+
+    import boto3
+
+    lambda_client = boto3.client(
+        "lambda", region_name=os.environ.get("AWS_REGION", "us-east-2")
+    )
+    func_name = os.environ.get("INGESTION_LAMBDA_NAME")
+    if not func_name:
+        raise RuntimeError("INGESTION_LAMBDA_NAME not set for Lambda trigger")
+
+    lambda_client.invoke(
+        FunctionName=func_name,
+        InvocationType="Event",
+        Payload=json.dumps({"artifact_id": artifact_id}).encode("utf-8"),
+    )
 
 
 @bp_artifacts.post("")
@@ -171,6 +194,7 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
             artifact.source_url = url
 
         session.flush()
+        session.commit()
         return jsonify({"message": "updated"}), HTTPStatus.OK
 
 
@@ -190,6 +214,7 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
             return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
 
         session.delete(artifact)
+        session.commit()
         return jsonify({"message": "deleted"}), HTTPStatus.OK
 
 
@@ -215,14 +240,27 @@ def artifact_create(artifact_type: str) -> ResponseReturnValue:
         if duplicate:
             return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
 
+        is_hf, hf_kind, repo_id = _is_hf_url(url)
+        if is_hf and repo_id:
+            derived_name = secure_filename(repo_id)
+
         artifact = Artifact(
             name=derived_name,
             type=artifact_type,
             source_url=url,
-            checksum_sha256=None,
         )
         session.add(artifact)
         session.flush()
+        session.commit()
+
+        env = os.getenv("APP_ENV", "dev").lower()
+        try:
+            if env in {"dev", "test"}:
+                ingest_artifact(artifact.id)  # worker will manage status updates
+            elif env == "prod":
+                _trigger_ingestion_lambda(artifact.id)
+        except Exception:
+            raise
         return jsonify(_to_envelope(artifact)), HTTPStatus.CREATED
 
 
