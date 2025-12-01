@@ -30,7 +30,9 @@ class TestGetModelMetadata:
         # Assertions
         assert result == {"name": "test-model", "num_contributors": None}
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/models/test-repo", headers={}
+            "https://huggingface.co/api/models/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -44,7 +46,9 @@ class TestGetModelMetadata:
             hf_client.get_model_metadata("test-repo")
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/models/test-repo", headers={}
+            "https://huggingface.co/api/models/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -57,7 +61,9 @@ class TestGetModelMetadata:
             print(hf_client.get_model_metadata("test-repo"))
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/models/test-repo", headers={}
+            "https://huggingface.co/api/models/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -157,6 +163,40 @@ class TestGetModelMetadata:
             4
         )  # Ensure sleep was called with increased backoff time
 
+    @patch("app.services.artifacts.client.requests.get")
+    @patch("time.sleep", return_value=None)
+    def test_request_exception_exhausted_retries_raise_runtime(
+        self, mock_sleep: MagicMock, mock_get: MagicMock, hf_client: HFClient
+    ) -> None:
+        """Raise RuntimeError when all attempts fail with RequestException."""
+        mock_get.side_effect = requests.exceptions.RequestException("Connection error")
+
+        with pytest.raises(RuntimeError) as excinfo:
+            hf_client.get_model_metadata("test-repo", 1)
+
+        assert "failed after 2 attempts" in str(excinfo.value)
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once_with(2)
+
+    @patch("app.services.artifacts.client.requests.get")
+    @patch("time.sleep", return_value=None)
+    def test_http_error_after_retries_includes_response_text(
+        self, mock_sleep: MagicMock, mock_get: MagicMock, hf_client: HFClient
+    ) -> None:
+        """Expose last HTTP response details when retries exhausted."""
+        mock_get.side_effect = [
+            make_response(status=503, text="Service Unavailable"),
+            make_response(status=503, text="Still down"),
+        ]
+
+        with pytest.raises(RuntimeError) as excinfo:
+            hf_client.get_model_metadata("test-repo", 1)
+
+        assert "HTTP 503" in str(excinfo.value)
+        assert "Still down" in str(excinfo.value)
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once_with(2)
+
 
 class TestGetDatasetMetadata:
     """Test cases for the get_dataset_metadata method."""
@@ -173,7 +213,9 @@ class TestGetDatasetMetadata:
         # Assertions
         assert result == {"name": "test-dataset", "num_contributors": None}
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/datasets/test-repo", headers={}
+            "https://huggingface.co/api/datasets/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -187,7 +229,9 @@ class TestGetDatasetMetadata:
             hf_client.get_dataset_metadata("test-repo")
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/datasets/test-repo", headers={}
+            "https://huggingface.co/api/datasets/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -201,7 +245,9 @@ class TestGetDatasetMetadata:
             hf_client.get_dataset_metadata("test-repo")
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/datasets/test-repo", headers={}
+            "https://huggingface.co/api/datasets/test-repo",
+            headers={},
+            timeout=10,
         )
 
 
@@ -220,7 +266,9 @@ class TestGetSpaceMetadata:
         # Assertions
         assert result == {"name": "test-space", "num_contributors": None}
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/spaces/test-repo", headers={}
+            "https://huggingface.co/api/spaces/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -234,7 +282,9 @@ class TestGetSpaceMetadata:
             hf_client.get_space_metadata("test-repo")
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/spaces/test-repo", headers={}
+            "https://huggingface.co/api/spaces/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
@@ -248,7 +298,9 @@ class TestGetSpaceMetadata:
             hf_client.get_space_metadata("test-repo")
 
         mock_get.assert_called_once_with(
-            "https://huggingface.co/api/spaces/test-repo", headers={}
+            "https://huggingface.co/api/spaces/test-repo",
+            headers={},
+            timeout=10,
         )
 
     @patch("app.services.artifacts.client.requests.get")
