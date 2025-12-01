@@ -231,9 +231,11 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     url_raw = body.get("url")
     if not isinstance(url_raw, str) or not url_raw.strip():
+        print(f"artifact_create: missing url for type={artifact_type}")
         return jsonify({"error": "missing url"}), HTTPStatus.BAD_REQUEST
     url = url_raw.strip()
     if not _validate_http_url(url):
+        print(f"artifact_create: invalid url for type={artifact_type} url={url}")
         return jsonify({"error": "invalid url"}), HTTPStatus.BAD_REQUEST
 
     derived_name = secure_filename(url.rstrip("/").split("/")[-1] or "artifact")
@@ -241,6 +243,10 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
     with orm_session() as session:
         duplicate = _compute_duplicate(session, artifact_type, derived_name, url)
         if duplicate:
+            print(
+                f"artifact_create: duplicate detected type={artifact_type} "
+                f"url={url} id={duplicate.id}"
+            )
             return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
 
         is_hf, hf_kind, repo_id = _is_hf_url(url)
@@ -255,6 +261,10 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         session.add(artifact)
         session.flush()
         session.commit()
+        print(
+            f"artifact_create: created artifact id={artifact.id} "
+            f"type={artifact_type} name={derived_name} url={url}"
+        )
 
         env = os.getenv("APP_ENV", "dev").lower()
         status_code = HTTPStatus.CREATED
@@ -262,9 +272,11 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         try:
             if env in {"dev", "test"}:
                 ingest_artifact(artifact.id)  # worker will manage status updates
+                print(f"artifact_create: ingestion started locally id={artifact.id}")
             elif env == "prod":
                 _trigger_ingestion_lambda(artifact.id)
                 status_code = HTTPStatus.ACCEPTED
+                print(f"artifact_create: ingestion lambda triggered id={artifact.id}")
         except Exception:
             raise
         return response_body, status_code
