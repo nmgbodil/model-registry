@@ -164,7 +164,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         logic,
         "_collect_preview_metadata",
-        lambda a: {"dataset_url": "ds", "code_url": "code"},
+        lambda a: {"dataset_ref": "ds", "code_url": "code"},
     )
     monkeypatch.setattr(logic, "calculate_scores", lambda urlset: _good_rating())
     monkeypatch.setattr(
@@ -186,6 +186,9 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     monkeypatch.setattr(
         logic, "get_artifact_id_by_ref", lambda s, ref, exclude_id=None: 99
     )
+    monkeypatch.setattr(
+        logic, "_upload_dependencies", lambda s, a, p: {"dataset_id": 7, "code_id": 8}
+    )
 
     updated_attrs: Dict[str, Any] = {}
 
@@ -202,7 +205,8 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
     assert updated_attrs["status"] == ArtifactStatus.accepted
     assert updated_attrs["s3_key"] == "s3://bucket/key"
     assert updated_attrs["parent_artifact_id"] == 99
-    assert updated_attrs["dataset_url"] == "ds"
+    assert updated_attrs["dataset_id"] == 7
+    assert updated_attrs["code_id"] == 8
     assert updated_attrs["checksum_sha256"] == "abc"
     assert updated_attrs["license"] == "apache-2.0"
     assert fake_session.committed is True

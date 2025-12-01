@@ -122,3 +122,18 @@ class TestArtifactsDal:
 
             assert size == 123
             assert missing is None
+
+    def test_create_artifact_persists_and_sets_id(self) -> None:
+        """create_artifact should add and flush a new artifact."""
+        with _db_session() as session:
+            created = artifacts_dal.create_artifact(
+                session,
+                name="new-artifact",
+                type="model",
+                source_url="http://example.com",
+                status=ArtifactStatus.pending,
+            )
+
+            assert created.id is not None
+            fetched = artifacts_dal.get_artifact_by_id(session, created.id)
+            assert fetched is created

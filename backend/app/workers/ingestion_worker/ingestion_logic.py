@@ -8,10 +8,12 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Tuple
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
 from app.dals.artifacts import (
+    create_artifact,
     get_artifact_by_id,
     get_artifact_id_by_ref,
     get_artifacts_with_parent_ref,
@@ -193,6 +195,65 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         return _finalize_from_repo(repo)
 
 
+def _derive_name_from_url(url: str, fallback: str) -> str:
+    """Derive a name from a URL path or fall back."""
+    is_hf, _, repo_id = _is_hf_url(url)
+    if is_hf and repo_id:
+        return repo_id
+    try:
+        parsed = urlparse(url)
+        path = parsed.path.strip("/")
+        if path:
+            return path.split("/")[-1]
+    except Exception:
+        pass
+    return fallback
+
+
+def _upload_dependencies(
+    session: Session, artifact: Artifact, preview_metadata: Mapping[str, Any]
+) -> Dict[str, int]:
+    """Create dataset/code artifacts for dependencies and upload their archives."""
+    dep_ids: Dict[str, int] = {}
+
+    for field, dep_type, key in (
+        ("dataset_id", "dataset", "dataset_url"),
+        ("code_id", "code", "code_url"),
+    ):
+        source = preview_metadata.get(key)
+        if not source or not isinstance(source, str):
+            continue
+
+        name = _derive_name_from_url(source, f"{artifact.name}-{dep_type}")
+        dep_artifact = create_artifact(
+            session,
+            name=name,
+            type=dep_type,
+            source_url=source,
+            status=ArtifactStatus.pending,
+        )
+
+        archive_path, meta = _fetch_artifact_archive(dep_artifact)
+        try:
+            s3_uri = upload_artifact(archive_path, dep_artifact.id)
+            attrs: Dict[str, Any] = {
+                "status": ArtifactStatus.accepted,
+                "s3_key": s3_uri,
+            }
+            attrs.update({k: v for k, v in meta.items() if v is not None})
+            update_artifact_attributes(session, dep_artifact, **attrs)
+            dep_ids[field] = dep_artifact.id
+        finally:
+            if archive_path and os.path.exists(archive_path):
+                try:
+                    os.remove(archive_path)
+                    shutil.rmtree(Path(archive_path).parent, ignore_errors=True)
+                except Exception:
+                    pass
+
+    return dep_ids
+
+
 def ingest_artifact(artifact_id: int) -> ArtifactStatus:
     """Ingest a model artifact by scoring and updating its status."""
     with orm_session() as session:
@@ -226,6 +287,9 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                     **{k: v for k, v in preview_metadata.items() if v is not None},
                     **{k: v for k, v in artifact_metadata.items() if v is not None},
                 }
+                # Remove preview-only fields not stored on the artifact
+                combined_metadata.pop("dataset_ref", None)
+                combined_metadata.pop("code_url", None)
                 attrs: Dict[str, Any] = {
                     "status": ArtifactStatus.accepted,
                     "s3_key": s3_uri,
@@ -242,6 +306,9 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                         attrs["parent_artifact_id"] = parent_id
 
                 attrs.update(combined_metadata)
+                if artifact.type == "model":
+                    dep_ids = _upload_dependencies(session, artifact, preview_metadata)
+                    attrs.update(dep_ids)
                 update_artifact_attributes(session, artifact, **attrs)
 
                 _backfill_children(session, artifact)
