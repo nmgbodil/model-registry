@@ -288,7 +288,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                     **{k: v for k, v in artifact_metadata.items() if v is not None},
                 }
                 # Remove preview-only fields not stored on the artifact
-                combined_metadata.pop("dataset_ref", None)
+                combined_metadata.pop("dataset_url", None)
                 combined_metadata.pop("code_url", None)
                 attrs: Dict[str, Any] = {
                     "status": ArtifactStatus.accepted,
