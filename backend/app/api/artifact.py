@@ -38,15 +38,22 @@ def get_artifact_cost(
 ) -> tuple[Response, HTTPStatus]:
     """Return the cost for the given artifact."""
     try:
+        allowed_types = {"model", "dataset", "code"}
+        if (artifact_type or "").strip().lower() not in allowed_types:
+            raise InvalidArtifactTypeError(
+                "There is missing field(s) in the artifact_type or artifact_id or it "
+                "is formed improperly, or is invalid."
+            )
+
         include_dependencies = _parse_dependency_flag(request.args.get("dependency"))
-        cost = compute_artifact_cost(
-            artifact_type, artifact_id, include_dependencies=include_dependencies
+        cost_map = compute_artifact_cost(
+            artifact_id, include_dependencies=include_dependencies
         )
-        payload: Dict[str, Any] = {
-            str(artifact_id): ArtifactCost(
+        payload: Dict[str, Any] = {}
+        for art_id, cost in cost_map.items():
+            payload[str(art_id)] = ArtifactCost(
                 total_cost=cost.total_cost, standalone_cost=cost.standalone_cost
             ).model_dump(exclude_none=True)
-        }
         return jsonify(payload), HTTPStatus.OK
     except (InvalidArtifactIdError, InvalidArtifactTypeError) as exc:
         return (

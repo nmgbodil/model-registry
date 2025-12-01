@@ -33,9 +33,9 @@ def test_get_artifact_cost_success(
     monkeypatch.setattr(
         artifact_api,
         "compute_artifact_cost",
-        lambda artifact_type, artifact_id, include_dependencies=False: ArtifactCost(
-            total_cost=123.0, standalone_cost=None
-        ),
+        lambda artifact_id, include_dependencies=False: {
+            5: ArtifactCost(total_cost=123.0, standalone_cost=None)
+        },
     )
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/5/cost")
@@ -52,15 +52,19 @@ def test_get_artifact_cost_with_dependency_flag(
     monkeypatch.setattr(
         artifact_api,
         "compute_artifact_cost",
-        lambda artifact_type, artifact_id, include_dependencies=False: ArtifactCost(
-            total_cost=200.0, standalone_cost=100.0
-        ),
+        lambda artifact_id, include_dependencies=False: {
+            5: ArtifactCost(total_cost=1255.0, standalone_cost=412.5),
+            4628173590: ArtifactCost(total_cost=280.0, standalone_cost=280.0),
+            5738291045: ArtifactCost(total_cost=562.5, standalone_cost=562.5),
+        },
     )
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/5/cost?dependency=true")
     assert resp.status_code == 200
     payload = resp.get_json()
-    assert payload["5"]["standalone_cost"] == 100.0
+    assert payload["5"]["standalone_cost"] == 412.5
+    assert payload["5"]["total_cost"] == 1255.0
+    assert "4628173590" in payload and "5738291045" in payload
 
 
 def test_get_artifact_cost_invalid_dependency(flask_app: Flask) -> None:

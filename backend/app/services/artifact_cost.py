@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from app.dals.artifacts import (
-    get_artifact_by_id,
-    get_artifact_size,
-)
+from typing import Dict
+
+from app.dals.artifacts import get_artifact_by_id
 from app.db.session import orm_session
 from app.schemas.artifact import ArtifactCost
 
@@ -27,18 +26,9 @@ class ArtifactNotFoundError(ArtifactCostError):
 
 
 def compute_artifact_cost(
-    artifact_type: str, artifact_id: int, include_dependencies: bool = False
-) -> ArtifactCost:
+    artifact_id: int, include_dependencies: bool = False
+) -> Dict[int, ArtifactCost]:
     """Calculate cost for an artifact, optionally including dependencies."""
-    allowed_types = {"model", "dataset", "code"}
-    normalized_type = (artifact_type or "").strip().lower()
-
-    if normalized_type not in allowed_types:
-        raise InvalidArtifactTypeError(
-            "There is missing field(s) in the artifact_type or artifact_id or it is "
-            "formed improperly, or is invalid."
-        )
-
     if not artifact_id or artifact_id <= 0:
         raise InvalidArtifactIdError(
             "There is missing field(s) in the artifact_type or artifact_id or it is "
@@ -51,19 +41,44 @@ def compute_artifact_cost(
             if artifact is None:
                 raise ArtifactNotFoundError("Artifact does not exist.")
 
-            if (artifact.type or "").lower() != normalized_type:
-                raise InvalidArtifactTypeError(
-                    "There is missing field(s) in the artifact_type or artifact_id or "
-                    "it is formed improperly, or is invalid."
-                )
+            def _size_from_art(art: object) -> float:
+                if not art or getattr(art, "size_bytes", None) is None:
+                    raise ArtifactNotFoundError("Artifact does not exist.")
+                return float(getattr(art, "size_bytes"))
 
-            size = get_artifact_size(session, artifact_id)
-            if size is None:
-                raise ArtifactNotFoundError("Artifact does not exist.")
+            costs: Dict[int, ArtifactCost] = {}
+            base_total = _size_from_art(artifact)
+            costs[artifact.id] = ArtifactCost(
+                total_cost=base_total,
+                standalone_cost=base_total if include_dependencies else None,
+            )
 
-            total_cost = float(size)
-            standalone_cost = total_cost if include_dependencies else None
-            return ArtifactCost(total_cost=total_cost, standalone_cost=standalone_cost)
+            if include_dependencies:
+                deps = [
+                    artifact.dataset
+                    or (
+                        get_artifact_by_id(session, artifact.dataset_id)
+                        if artifact.dataset_id
+                        else None
+                    ),
+                    artifact.code
+                    or (
+                        get_artifact_by_id(session, artifact.code_id)
+                        if artifact.code_id
+                        else None
+                    ),
+                ]
+                for dep in deps:
+                    if dep is None:
+                        continue
+                    dep_size = _size_from_art(dep)
+                    costs[dep.id] = ArtifactCost(
+                        total_cost=dep_size, standalone_cost=dep_size
+                    )
+                    base_total += dep_size
+                costs[artifact.id].total_cost = base_total
+
+            return costs
     except ArtifactCostError:
         raise
     except Exception as exc:  # pragma: no cover - defensive
