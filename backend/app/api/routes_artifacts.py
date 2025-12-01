@@ -265,7 +265,6 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
             elif env == "prod":
                 _trigger_ingestion_lambda(artifact.id)
                 status_code = HTTPStatus.ACCEPTED
-                response_body = jsonify({"message": "ingestion accepted"})
         except Exception:
             raise
         return response_body, status_code
