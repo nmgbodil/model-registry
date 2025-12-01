@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+from http import HTTPStatus
 
-from flask import Blueprint, Flask
+from flask import Blueprint, Flask, Response, jsonify
 from flask_cors import CORS
 
 from app.api.artifact import bp_artifact as bp_artifact_cost
@@ -51,6 +52,24 @@ def create_app() -> Flask:
             str: Welcome message.
         """
         return "Hello World, welcome to Model Registry backend!"
+
+    @bp_master.get("/tracks")
+    def planned_tracks() -> tuple[Response, HTTPStatus]:
+        """Return the list of planned tracks for implementation."""
+        try:
+            return jsonify({"plannedTracks": ["Performance track"]}), HTTPStatus.OK
+        except Exception:
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            "The system encountered an error while retrieving the "
+                            "student's track information."
+                        )
+                    }
+                ),
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
 
     # Ensure DB tables exist in dev/test
     if os.getenv("APP_ENV", "dev") in ("dev", "test"):
