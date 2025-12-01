@@ -12,6 +12,7 @@ from app.api.artifact import bp_artifact as bp_artifact_cost
 from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
+from app.api.routes_reset import bp_reset
 from app.config import get_settings
 
 
@@ -43,6 +44,7 @@ def create_app() -> Flask:
     bp_master.register_blueprint(bp_artifacts)
     bp_master.register_blueprint(bp_artifact)
     bp_master.register_blueprint(bp_artifact_cost)
+    bp_master.register_blueprint(bp_reset)
 
     @bp_master.get("/")
     def hello() -> str:
