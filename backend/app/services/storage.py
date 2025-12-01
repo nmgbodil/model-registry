@@ -83,3 +83,16 @@ def list_artifacts(prefix: str = "artifact/") -> List[str]:
     except ClientError as e:
         print(f"Failed to list artifacts: {e}")
         raise
+
+
+def delete_all_objects() -> None:
+    """Delete all objects from the configured S3 bucket."""
+    try:
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=S3_BUCKET):
+            keys = [{"Key": obj["Key"]} for obj in page.get("Contents", [])]
+            if keys:
+                s3.delete_objects(Bucket=S3_BUCKET, Delete={"Objects": keys})
+    except ClientError as e:
+        print(f"Failed to delete objects: {e}")
+        raise
