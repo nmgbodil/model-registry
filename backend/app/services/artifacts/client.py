@@ -29,49 +29,72 @@ class _Client:
         backoff: float = 2.0,
         headers: dict[str, Any] = {},
     ) -> Any:
-        """Perform a GET request to the specified path and return the JSON response.
-
-        Args:
-            path (str): The API endpoint path.
-            retries (Optional[int]): The number of retry attempts for failed requests.
-                Defaults to 0.
-            backoff (Optional[int]): The backoff multiplier for retry delays.
-                Defaults to 2.
-
-        Returns:
-            Any: The JSON response from the API.
-
-        Raises:
-            RuntimeError: If the response is not successful or retries are exhausted.
-        """
+        """Perform a GET request to the specified path and return the JSON response."""
         url = self.base_url + path
+
+        last_response: Optional[requests.Response] = None
+        last_exc: Optional[BaseException] = None
 
         for attempt in range(retries + 1):
             try:
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=10)
+                last_response = response
+
+                # Raise for HTTP errors (4xx/5xx)
                 response.raise_for_status()
                 return response.json()
-            except requests.exceptions.HTTPError:
-                if response.status_code >= 500 and attempt < retries:
-                    wait_time = backoff * 2**attempt
+
+            except requests.exceptions.HTTPError as exc:
+                last_exc = exc
+
+                status = response.status_code  # safe: response exists here
+
+                # Retry on 5xx
+                if status >= 500 and attempt < retries:
+                    wait_time = backoff * (2**attempt)
                     time.sleep(wait_time)
                     continue
 
-                if response.status_code == 429 and attempt < retries:
-                    wait_time = response.headers.get(
-                        "Retry-After", backoff * 2**attempt
+                # Retry on 429 with Retry-After if provided
+                if status == 429 and attempt < retries:
+                    wait_header = response.headers.get(
+                        "Retry-After", backoff * (2**attempt)
                     )
-                    time.sleep(float(wait_time))
-                    continue
-                break
-            except requests.exceptions.RequestException:
-                if attempt < retries:
-                    wait_time = backoff * 2**attempt
+                    try:
+                        wait_time = float(wait_header)
+                    except (TypeError, ValueError):
+                        wait_time = backoff * (2**attempt)
                     time.sleep(wait_time)
+                    continue
+
+                # Non-retryable HTTP error or retries exhausted
+                break
+
+            except requests.exceptions.RequestException as exc:
+                # This is where response may NOT exist — so don't touch it.
+                last_exc = exc
+                if attempt < retries:
+                    wait_time = backoff * (2**attempt)
+                    time.sleep(wait_time)
+                    continue
                 else:
                     break
 
-        raise RuntimeError(f"HTTP {response.status_code} for {url}: {response.text}")
+        # --- If we reached here, all attempts failed ---
+
+        if last_response is not None:
+            # We had at least one HTTP response; use its status/text
+            raise RuntimeError(
+                f"HTTP {last_response.status_code} for {url}: {last_response.text}"
+            ) from last_exc
+        elif last_exc is not None:
+            # Network-level failure, no HTTP response
+            raise RuntimeError(
+                f"Request to {url} failed after {retries + 1} attempts: {last_exc}"
+            ) from last_exc
+        else:
+            # Extremely unlikely, but keeps mypy/linters happy
+            raise RuntimeError(f"Request to {url} failed for unknown reasons")
 
 
 class HFClient(_Client):
