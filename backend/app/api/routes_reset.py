@@ -25,16 +25,20 @@ def reset_registry() -> ResponseReturnValue:
     """Reset the registry: purge S3 artifacts, artifacts, and ratings."""
     auth_err = _require_auth()
     if auth_err is not None:
+        print("Reset endpoint: authentication failed.")
         return auth_err
 
     try:
         delete_all_objects()
+        print("Reset endpoint: S3 objects deleted.")
     except Exception:
         # Best-effort: if S3 is not configured, proceed with DB reset.
+        print("Reset endpoint: S3 delete failed; proceeding with DB cleanup.")
         pass
 
     with orm_session() as session:
         session.query(Rating).delete()
         session.query(Artifact).delete()
         session.commit()
+    print("Reset endpoint: database tables cleared.")
     return jsonify({"message": "reset"}), HTTPStatus.OK
