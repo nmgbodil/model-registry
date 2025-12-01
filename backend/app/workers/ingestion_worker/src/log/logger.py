@@ -6,6 +6,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 class LogLevel(Enum):
     """Logging levels supported by the worker."""

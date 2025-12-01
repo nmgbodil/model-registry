@@ -4,9 +4,12 @@ import os
 from contextlib import contextmanager
 from typing import Any, Iterable, Iterator, Mapping, Optional
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection, Engine, RowMapping
 from sqlalchemy.pool import StaticPool
+
+load_dotenv()
 
 APP_ENV = os.getenv("APP_ENV", "dev")
 

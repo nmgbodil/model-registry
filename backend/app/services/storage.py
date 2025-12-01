@@ -16,6 +16,9 @@ from typing import List
 
 import boto3
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Load environment variables
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
