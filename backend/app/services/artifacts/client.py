@@ -345,14 +345,19 @@ class GitLabClient(_Client):
         return len(data)
 
 
-# if __name__ == "__main__":
-#     import json
+if __name__ == "__main__":
+    import json
 
-#     hf_client = HFClient()
-#     # resp = hf_client.get_model_metadata("google-bert/bert-base-uncased")
-#     resp = hf_client.get_dataset_metadata("bookcorpus")
-#     with open("response.json", "w") as fp:
-#         json.dump(resp, fp)
+    #     hf_client = HFClient()
+    #     # resp = hf_client.get_model_metadata("google-bert/bert-base-uncased")
+    #     resp = hf_client.get_dataset_metadata("bookcorpus")
+    #     with open("response.json", "w") as fp:
+    #         json.dump(resp, fp)
 
-#     github_client = GitHubClient()
-#     print(github_client.get_metadata("https://github.com/google-research/bert"))
+    github_client = GitHubClient()
+    resp = github_client.get_metadata(
+        "https://github.com/huggingface/transformers-research-projects/"
+        "tree/main/distillation"
+    )
+    with open("response.json", "w") as fp:
+        json.dump(resp, fp)

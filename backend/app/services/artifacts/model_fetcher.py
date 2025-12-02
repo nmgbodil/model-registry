@@ -75,6 +75,10 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
         self._tmp_dir = tempfile.TemporaryDirectory(prefix="mac_")
         target = Path(self._tmp_dir.name)
 
+        print(
+            f"snapshot_fetcher: downloading repo={self.repo_id} "
+            f"type={self.repo_type} revision={self.revision}"
+        )
         local_path = Path(
             snapshot_download(
                 repo_id=self.repo_id,
@@ -89,6 +93,7 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
 
         self._remove_large_files(local_path)
 
+        print(f"snapshot_fetcher: ready at {local_path}")
         return RepoView(local_path)
 
     def __exit__(
@@ -126,6 +131,7 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
         for p in local_path.rglob("*"):
             if p.is_file() and p.stat().st_size > MAX_FILE_BYTES:
                 p.unlink(missing_ok=True)
+                print(f"snapshot_fetcher: removed large file {p}")
 
 
 class HFModelFetcher(_BaseSnapshotFetcher):
