@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from .db.models import Artifact, Rating
-from .schemas.model_rating import ModelRating, ModelSizeScore
+from app.db.models import Artifact, Rating
+from app.schemas.model_rating import ModelRating, ModelSizeScore
 
 
 def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
@@ -35,6 +35,37 @@ def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
         return (True, "model", f"{parts[0]}/{parts[1]}")
     else:
         return (True, "unknown", None)
+
+
+def artifact_name_from_url(url: str) -> str:
+    """Generate a stable artifact name from a source URL.
+
+    Rules:
+      - Hugging Face model/dataset: use only the repo name (after last "/")
+        e.g. "google-bert/bert-base-uncased" -> "bert-base-uncased"
+             "bookcorpus/bookcorpus" -> "bookcorpus"
+             "lerobot/pusht" -> "pusht"
+      - GitHub/Kaggle/etc.: last path segment, strip "/" and ".git".
+    """
+    is_hf, _kind, repo_id = _is_hf_url(url)
+    if is_hf and repo_id:
+        # Return the last part only
+        # Example: "google-bert/bert-base-uncased" -> "bert-base-uncased"
+        return repo_id.split("/")[-1]
+
+    # Non-HF fallback
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+    if not path:
+        return parsed.netloc.replace(".", "_")
+
+    last = path.split("/")[-1]
+    if last.endswith(".git"):
+        last = last[:-4]
+
+    return last or parsed.netloc.replace(".", "_")
 
 
 def build_model_rating_from_record(artifact: Artifact, rating: Rating) -> ModelRating:
@@ -124,3 +155,8 @@ def canonical_dataset_url(dataset_ref: Optional[str]) -> Optional[str]:
             return url
 
     return None
+
+
+if __name__ == "__main__":
+    print(_is_hf_url("https://huggingface.co/datasets/bookcorpus"))
+    print(_is_hf_url("https://huggingface.co/datasets/HuggingFaceM4/FairFace"))

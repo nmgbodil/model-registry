@@ -11,11 +11,10 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
-from werkzeug.utils import secure_filename
 
 from app.db.models import Artifact
 from app.db.session import orm_session
-from app.utils import _is_hf_url
+from app.utils import artifact_name_from_url
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
 load_dotenv()
@@ -189,8 +188,8 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
         name = metadata.get("name")
         if isinstance(name, str) and name.strip():
-            normalized = re.sub(r"\\s+", "_", name.strip())
-            artifact.name = secure_filename(normalized)
+            normalized = re.sub(r"\s+", "_", name.strip())
+            artifact.name = normalized
 
         url = data.get("url")
         if isinstance(url, str) and url.strip():
@@ -238,10 +237,14 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         print(f"artifact_create: invalid url for type={artifact_type} url={url}")
         return jsonify({"error": "invalid url"}), HTTPStatus.BAD_REQUEST
 
-    derived_name = secure_filename(url.rstrip("/").split("/")[-1] or "artifact")
+    provided_name = body.get("name")
+    if isinstance(provided_name, str) and provided_name:
+        artifact_name = provided_name
+    else:
+        artifact_name = artifact_name_from_url(url)
 
     with orm_session() as session:
-        duplicate = _compute_duplicate(session, artifact_type, derived_name, url)
+        duplicate = _compute_duplicate(session, artifact_type, artifact_name, url)
         if duplicate:
             print(
                 f"artifact_create: duplicate detected type={artifact_type} "
@@ -249,12 +252,8 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
             )
             return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
 
-        is_hf, hf_kind, repo_id = _is_hf_url(url)
-        if is_hf and repo_id:
-            derived_name = secure_filename(repo_id)
-
         artifact = Artifact(
-            name=derived_name,
+            name=artifact_name,
             type=artifact_type,
             source_url=url,
         )
@@ -263,7 +262,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         session.commit()
         print(
             f"artifact_create: created artifact id={artifact.id} "
-            f"type={artifact_type} name={derived_name} url={url}"
+            f"type={artifact_type} name={artifact_name} url={url}"
         )
 
         env = os.getenv("APP_ENV", "dev").lower()
