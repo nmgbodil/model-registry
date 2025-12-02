@@ -12,9 +12,9 @@ from urllib.parse import quote_plus, urlparse
 
 import requests
 
-from .client import GitHubClient, GitLabClient
-from .model_fetcher import _BaseSnapshotFetcher
-from .repo_view import RepoView
+from app.services.artifacts.client import GitHubClient, GitLabClient
+from app.services.artifacts.model_fetcher import _BaseSnapshotFetcher
+from app.services.artifacts.repo_view import RepoView
 
 SPACE_ALLOW = ["app.*", "requirements*.txt", "runtime.txt", "*.py", "README.*"]
 
@@ -51,16 +51,22 @@ def open_codebase(
     """
     host, parts = _parse(url)
     if _is_hf_space(host, parts):
+        print(f"code_fetcher: using HF Space fetcher for url={url}")
         return _HFSpaceFetcher(
             f"{parts[1]}/{parts[2]}", _extract_rev(parts), allow_patterns=allow_patterns
         )
     if host.endswith("github.com"):
         owner, repo = parts[0], parts[1]
         revision = _extract_rev(parts) or ref
+        print(
+            "code_fetcher: using GitHub fetcher "
+            f"owner={owner} repo={repo} ref={revision}"
+        )
         return _GitHubCodeFetcher(owner, repo, revision, token)
     if host.endswith("gitlab.com"):
         ns_name = "/".join(parts)
         revision = _extract_rev(parts) or ref
+        print(f"code_fetcher: using GitLab fetcher project={ns_name} ref={revision}")
         return _GitLabCodeFetcher(ns_name, revision, token)
 
     raise ValueError("Unsupported codebase url link")
@@ -151,8 +157,13 @@ class _GitHubCodeFetcher(AbstractContextManager[RepoView]):
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
 
+        print(
+            f"code_fetcher: downloading GitHub tarball owner={self.owner} "
+            f"repo={self.repo} ref={self.ref}"
+        )
         _extract_tarball(url, headers, root)
         self._root = _top_dir(root)
+        print(f"code_fetcher: extracted GitHub tarball to {self._root}")
         return RepoView(self._root)
 
     def __exit__(
@@ -206,8 +217,13 @@ class _GitLabCodeFetcher(AbstractContextManager[RepoView]):
         if self.token:
             headers["PRIVATE-TOKEN"] = self.token
 
+        print(
+            f"code_fetcher: downloading GitLab tarball project={self.ns_name} "
+            f"ref={self.ref}"
+        )
         _extract_tarball(url, headers, root)
         self._root = _top_dir(root)
+        print(f"code_fetcher: extracted GitLab tarball to {self._root}")
         return RepoView(self._root)
 
     def __exit__(
@@ -225,6 +241,7 @@ class _GitLabCodeFetcher(AbstractContextManager[RepoView]):
 
 
 def _extract_tarball(url: str, headers: dict[str, Any], dest: Path) -> None:
+    print(f"code_fetcher: fetching tarball url={url}")
     try:
         response = requests.get(url, headers=headers, allow_redirects=True)
         response.raise_for_status()
@@ -240,8 +257,18 @@ def _extract_tarball(url: str, headers: dict[str, Any], dest: Path) -> None:
             tf.extractall(dest, filter="data")
         except TypeError:
             tf.extractall(dest)
+    print(f"code_fetcher: tarball extracted into {dest}")
 
 
 def _top_dir(root: Path) -> Path:
     dirs = [p for p in root.iterdir() if p.is_dir()]
     return dirs[0] if dirs else root
+
+
+if __name__ == "__main__":
+
+    with open_codebase(
+        "https://github.com/huggingface/transformers-research-projects/"
+        "tree/main/distillation"
+    ) as repo:
+        print(repo.root)

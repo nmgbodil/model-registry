@@ -100,11 +100,23 @@ def _collect_preview_metadata(artifact: Artifact) -> Dict[str, Any]:
                 with HFModelFetcher(
                     repo_id, allow_patterns=MODEL_PREVIEW_ALLOW
                 ) as repo:
+                    print(
+                        "ingestion: preview metadata fetch "
+                        f"for artifact_id={artifact.id} repo={repo_id}"
+                    )
                     return _extract(repo)
 
         # If non-HF or fetch fails, skip preview metadata to avoid heavy downloads.
+        print(
+            f"ingestion: skipping preview metadata for artifact_id={artifact.id} "
+            f"source={artifact.source_url}"
+        )
         return {}
     except Exception:
+        print(
+            f"ingestion: preview metadata failed for artifact_id={artifact.id} "
+            f"source={artifact.source_url}"
+        )
         return {}
 
 
@@ -163,6 +175,10 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
     archive_base = os.path.join(tmp_dir, f"{artifact.name}-full")
 
     def _finalize_from_repo(repo: RepoView) -> Tuple[str, Dict[str, Any]]:
+        print(
+            f"ingestion: building archive for artifact_id={artifact.id} "
+            f"path={repo.root}"
+        )
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
         artifact_metadata: Dict[str, Any] = {
@@ -184,16 +200,28 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
     if artifact.type == "model":
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "model" and repo_id:
+            print(
+                f"ingestion: fetching HF model snapshot repo={repo_id} "
+                f"artifact_id={artifact.id}"
+            )
             with HFModelFetcher(repo_id) as repo:
                 return _finalize_from_repo(repo)
 
     if artifact.type == "dataset":
         is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
         if is_hf and kind == "dataset" and repo_id:
+            print(
+                f"ingestion: fetching HF dataset snapshot repo={repo_id} "
+                f"artifact_id={artifact.id}"
+            )
             with HFDatasetFetcher(repo_id) as repo:
                 return _finalize_from_repo(repo)
 
     with open_codebase(artifact.source_url) as repo:
+        print(
+            f"ingestion: fetching code snapshot url={artifact.source_url} "
+            f"artifact_id={artifact.id}"
+        )
         return _finalize_from_repo(repo)
 
 
@@ -234,6 +262,10 @@ def _upload_dependencies(
             source_url=source,
             status=ArtifactStatus.pending,
         )
+        print(
+            f"ingestion: uploading dependency {dep_type} for artifact_id={artifact.id} "
+            f"dep_id={dep_artifact.id} url={source}"
+        )
 
         archive_path, meta = _fetch_artifact_archive(dep_artifact)
         try:
@@ -269,6 +301,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
         if not artifact.source_url:
             raise ValueError("Artifact source_url is required to ingest.")
 
+        print(f"ingestion: start artifact_id={artifact_id} type={artifact.type}")
         preview_metadata = _collect_preview_metadata(artifact)
 
         rating_payload: Optional[Mapping[str, Any]] = None
@@ -282,6 +315,10 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
             )
             rating_payload = calculate_scores(urlset)
             ingestible = _is_ingestible(rating_payload)
+            print(
+                f"ingestion: rating computed artifact_id={artifact.id} "
+                f"ingestible={ingestible}"
+            )
 
         if ingestible:
             try:
@@ -328,8 +365,10 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                         shutil.rmtree(Path(archive_path).parent, ignore_errors=True)
                     except Exception:
                         pass
+            print(f"ingestion: accepted artifact_id={artifact.id}")
             return ArtifactStatus.accepted
 
         update_artifact_attributes(session, artifact, status=ArtifactStatus.rejected)
         session.commit()
+        print(f"ingestion: rejected artifact_id={artifact.id}")
         return ArtifactStatus.rejected
