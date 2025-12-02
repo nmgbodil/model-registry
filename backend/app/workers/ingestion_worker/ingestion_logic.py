@@ -112,11 +112,12 @@ def _collect_preview_metadata(artifact: Artifact) -> Dict[str, Any]:
             f"source={artifact.source_url}"
         )
         return {}
-    except Exception:
+    except Exception as exc:
         print(
             f"ingestion: preview metadata failed for artifact_id={artifact.id} "
             f"source={artifact.source_url}"
         )
+        print(exc)
         return {}
 
 
