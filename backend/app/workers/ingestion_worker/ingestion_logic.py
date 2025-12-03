@@ -322,6 +322,8 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
             )
 
         if ingestible:
+            # TODO: Remove this after testing
+            archive_path = None  # for debugging
             try:
                 archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
                 s3_uri = upload_artifact(archive_path, artifact.id)
