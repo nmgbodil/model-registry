@@ -25,12 +25,7 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "mod-reg-bucket-dev")
 
 # Create the S3 client using credentials from environment
-s3 = boto3.client(
-    "s3",
-    region_name=AWS_REGION,
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+s3 = boto3.client("s3", region_name=AWS_REGION)
 
 
 def upload_artifact(file_path: str, artifact_id: int) -> str:
