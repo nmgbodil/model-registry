@@ -324,6 +324,8 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
         if ingestible:
             try:
                 archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
+                # TODO: Remove this after testing
+                print("ingestion: access key: ", os.getenv("AWS_ACCESS_KEY_ID"))
                 s3_uri = upload_artifact(archive_path, artifact.id)
                 combined_metadata = {
                     **{k: v for k, v in preview_metadata.items() if v is not None},
