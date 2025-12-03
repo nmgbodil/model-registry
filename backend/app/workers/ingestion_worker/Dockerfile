@@ -9,8 +9,13 @@ RUN yum install -y gcc gcc-c++ make git && yum clean all
 WORKDIR /var/task
 COPY backend/ ./backend
 
-# Make ingestion_worket a top-level import root
-ENV PYTHONPATH=/var/task/backend/app/workers/ingestion_worker
+# Make ingestion_worket a top-level import root and keep HF caches in /tmp
+ENV PYTHONPATH=/var/task/backend/app/workers/ingestion_worker \
+    HF_HOME=/tmp/hf \
+    HF_HUB_CACHE=/tmp/hf/hub \
+    HF_DATASETS_CACHE=/tmp/hf/datasets \
+    HF_METRICS_CACHE=/tmp/hf/metrics \
+    TRANSFORMERS_CACHE=/tmp/hf/transformers
 
 WORKDIR /var/task/backend
 RUN pip install --no-cache-dir --upgrade pip
