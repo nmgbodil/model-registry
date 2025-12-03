@@ -8,6 +8,10 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Iterable, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
 
@@ -75,6 +79,8 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
         self._tmp_dir = tempfile.TemporaryDirectory(prefix="mac_")
         target = Path(self._tmp_dir.name)
 
+        token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+
         print(
             f"snapshot_fetcher: downloading repo={self.repo_id} "
             f"type={self.repo_type} revision={self.revision}"
@@ -87,6 +93,7 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
                 allow_patterns=self.allow_patterns,
                 tqdm_class=None,
                 local_dir=str(target),
+                token=token,
             )
         )
         self._local_path = local_path

@@ -1,10 +1,14 @@
 """HTTP clients for fetching artifact metadata from external services."""
 
+import os
 import time
 from typing import Any, Optional
 from urllib.parse import quote_plus, urlparse
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class _Client:
@@ -113,6 +117,14 @@ class HFClient(_Client):
         """
         super().__init__(base_url=base_url)
 
+    def _headers(self) -> dict[str, Any]:
+        """Return headers with optional bearer token."""
+        token = os.environ.get("HUGGINGFACE_HUB_TOKEN")
+        headers: dict[str, Any] = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        return headers
+
     def get_model_metadata(self, repo_id: str, retries: int = 0) -> dict[str, Any]:
         """Retrieve metadata for a specific model from the Hugging Face API.
 
@@ -126,7 +138,7 @@ class HFClient(_Client):
             ValueError: If the response data is not a dictionary.
         """
         path = f"/api/models/{repo_id}"
-        data = self._get_json(path, retries)
+        data = self._get_json(path, retries, headers=self._headers())
         if not isinstance(data, dict):
             raise ValueError(
                 f"Unexpected shape for model metadata at {self.base_url}{path}: "
@@ -149,7 +161,7 @@ class HFClient(_Client):
             ValueError: If the response data is not a dictionary.
         """
         path = f"/api/datasets/{repo_id}"
-        data = self._get_json(path, retries)
+        data = self._get_json(path, retries, headers=self._headers())
         if not isinstance(data, dict):
             raise ValueError(
                 f"Unexpected shape for dataset metadata at {self.base_url}{path}: "
@@ -172,7 +184,7 @@ class HFClient(_Client):
             ValueError: If the response data is not a dictionary.
         """
         path = f"/api/spaces/{repo_id}"
-        data = self._get_json(path, retries)
+        data = self._get_json(path, retries, headers=self._headers())
         if not isinstance(data, dict):
             raise ValueError(
                 f"Unexpected shape for space metadata at {self.base_url}{path}: "
