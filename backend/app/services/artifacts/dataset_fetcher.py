@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
-from .model_fetcher import _BaseSnapshotFetcher
+from app.services.artifacts.model_fetcher import _BaseSnapshotFetcher
 
 DATASET_ALLOW = [
     "README.md",
