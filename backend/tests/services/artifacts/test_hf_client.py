@@ -10,8 +10,9 @@ from tests.utils import make_response
 
 
 @pytest.fixture
-def hf_client() -> HFClient:
+def hf_client(monkeypatch: pytest.MonkeyPatch) -> HFClient:
     """Fixture to create an instance of HFClient."""
+    monkeypatch.delenv("HUGGINGFACE_HUB_TOKEN", raising=False)
     return HFClient()
 
 
