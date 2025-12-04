@@ -49,9 +49,10 @@ def open_codebase(
     Raises:
         ValueError: If the URL is unsupported or invalid.
     """
-    host, parts = _parse(url)
+    clean_url = url[:-4] if url.endswith(".git") else url
+    host, parts = _parse(clean_url)
     if _is_hf_space(host, parts):
-        print(f"code_fetcher: using HF Space fetcher for url={url}")
+        print(f"code_fetcher: using HF Space fetcher for url={clean_url}")
         return _HFSpaceFetcher(
             f"{parts[1]}/{parts[2]}", _extract_rev(parts), allow_patterns=allow_patterns
         )
@@ -268,7 +269,6 @@ def _top_dir(root: Path) -> Path:
 if __name__ == "__main__":
 
     with open_codebase(
-        "https://github.com/huggingface/transformers-research-projects/"
-        "tree/main/distillation"
+        "https://github.com/Parth1811/ptm-recommendation-with-transformers.git"
     ) as repo:
         print(repo.root)
