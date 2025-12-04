@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 
-from app.db.models import Artifact
+from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
 from app.utils import artifact_name_from_url
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
@@ -270,8 +270,24 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         response_body: Response = jsonify(_to_envelope(artifact))
         try:
             if env in {"dev", "test"}:
-                ingest_artifact(artifact.id)  # worker will manage status updates
+                status = ingest_artifact(
+                    artifact.id
+                )  # worker will manage status updates
                 print(f"artifact_create: ingestion started locally id={artifact.id}")
+                session.refresh(artifact)
+                status = status or artifact.status
+                if status == ArtifactStatus.rejected:
+                    return (
+                        jsonify(
+                            {
+                                "error": (
+                                    "Artifact is not registered due to the "
+                                    "disqualified rating."
+                                )
+                            }
+                        ),
+                        HTTPStatus.FAILED_DEPENDENCY,
+                    )
             elif env == "prod":
                 _trigger_ingestion_lambda(artifact.id)
                 status_code = HTTPStatus.ACCEPTED
