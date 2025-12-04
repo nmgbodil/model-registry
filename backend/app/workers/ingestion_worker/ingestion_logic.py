@@ -315,6 +315,8 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 code_url=preview_metadata.get("code_url"),
             )
             rating_payload = calculate_scores(urlset)
+            if rating_payload is not None:
+                _persist_rating(session, artifact, rating_payload)
             ingestible = _is_ingestible(rating_payload)
             print(
                 f"ingestion: rating computed artifact_id={artifact.id} "
@@ -358,8 +360,6 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 _backfill_children(session, artifact)
 
                 logger.debug("Collected artifact metadata: %s", artifact_metadata)
-                if rating_payload is not None:
-                    _persist_rating(session, artifact, rating_payload)
                 session.commit()
             finally:
                 if archive_path and os.path.exists(archive_path):

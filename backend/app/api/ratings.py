@@ -48,18 +48,18 @@ def _wait_for_ingestion(
 @bp_ratings.get("/model/<int:artifact_id>/rate")
 def rate_model(artifact_id: int) -> tuple[Response, HTTPStatus]:
     """Return a rating for the given model artifact."""
-    # status = _wait_for_ingestion(artifact_id)
-    # if status == ArtifactStatus.pending:
-    #     return (
-    #         jsonify(
-    #             {
-    #                 "error": (
-    #                     "Artifact ingestion is still in progress; timed out waiting."
-    #                 ),
-    #             }
-    #         ),
-    #         HTTPStatus.INTERNAL_SERVER_ERROR,
-    #     )
+    status = _wait_for_ingestion(artifact_id)
+    if status == ArtifactStatus.pending:
+        return (
+            jsonify(
+                {
+                    "error": (
+                        "Artifact ingestion is still in progress; timed out waiting."
+                    ),
+                }
+            ),
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
 
     try:
         rating = get_model_rating(artifact_id)
