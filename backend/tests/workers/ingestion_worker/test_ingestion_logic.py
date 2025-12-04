@@ -245,11 +245,13 @@ def test_ingest_artifact_rejects_on_low_rating(monkeypatch: Any) -> None:
         updated_attrs.update(attrs)
 
     monkeypatch.setattr(logic, "update_artifact_attributes", fake_update)
-    monkeypatch.setattr(
-        logic,
-        "_persist_rating",
-        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no rating")),
-    )
+    rating_calls: Dict[str, Any] = {}
+
+    def fake_persist(session: Any, art: Any, rating: Mapping[str, Any]) -> None:
+        rating_calls["called"] = True
+        rating_calls["artifact_id"] = art.id
+
+    monkeypatch.setattr(logic, "_persist_rating", fake_persist)
     monkeypatch.setattr(
         logic,
         "_backfill_children",
@@ -261,6 +263,8 @@ def test_ingest_artifact_rejects_on_low_rating(monkeypatch: Any) -> None:
     assert status == ArtifactStatus.rejected
     assert updated_attrs["status"] == ArtifactStatus.rejected
     assert fake_session.committed is True
+    assert rating_calls.get("called") is True
+    assert rating_calls.get("artifact_id") == artifact.id
 
 
 def test_ingest_artifact_accepts_non_model_without_rating(
