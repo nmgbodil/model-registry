@@ -9,6 +9,7 @@ from flask import Flask
 
 from app import create_app
 from app.api import ratings as ratings_api
+from app.db.models import ArtifactStatus
 from app.schemas.model_rating import ModelRating, ModelSizeScore
 from app.services import ratings as ratings_service
 
@@ -65,6 +66,11 @@ class TestRatingsApi:
         monkeypatch.setattr(
             ratings_api, "get_model_rating", lambda artifact_id: model_rating
         )
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: ArtifactStatus.accepted,
+        )
 
         client = flask_app.test_client()
         resp = client.get("/api/artifact/model/1/rate")
@@ -82,6 +88,11 @@ class TestRatingsApi:
             ratings_api,
             "get_model_rating",
             mock.MagicMock(side_effect=ratings_service.InvalidArtifactIdError()),
+        )
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: ArtifactStatus.accepted,
         )
         client = flask_app.test_client()
         resp = client.get("/api/artifact/model/0/rate")
@@ -107,6 +118,11 @@ class TestRatingsApi:
             "get_model_rating",
             mock.MagicMock(side_effect=exc_class("not found")),
         )
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: ArtifactStatus.accepted,
+        )
         client = flask_app.test_client()
         resp = client.get("/api/artifact/model/5/rate")
 
@@ -122,6 +138,43 @@ class TestRatingsApi:
             "get_model_rating",
             mock.MagicMock(side_effect=RuntimeError("boom")),
         )
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: ArtifactStatus.accepted,
+        )
         client = flask_app.test_client()
         resp = client.get("/api/artifact/model/5/rate")
         assert resp.status_code == 500
+
+    def test_rate_model_returns_500_when_still_pending(
+        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Responds with 500 when ingestion never completes within wait window."""
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: ArtifactStatus.pending,
+        )
+        client = flask_app.test_client()
+        resp = client.get("/api/artifact/model/5/rate")
+
+        assert resp.status_code == 500
+        payload = resp.get_json()
+        assert "error" in payload
+
+    def test_rate_model_returns_404_when_artifact_missing_during_wait(
+        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Responds with 404 when artifact disappears before rating fetch."""
+        monkeypatch.setattr(
+            ratings_api,
+            "_wait_for_ingestion",
+            lambda artifact_id: None,
+        )
+        client = flask_app.test_client()
+        resp = client.get("/api/artifact/model/5/rate")
+
+        assert resp.status_code == 404
+        payload = resp.get_json()
+        assert "error" in payload
