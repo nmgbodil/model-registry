@@ -11,12 +11,12 @@ mentioned in the text, and also choose ONE primary dataset for rating.
 
 Your output MUST be a JSON object with the following exact fields:
 
-{
+{{
   "datasets": [...],
   "primary_dataset": null,
   "code_repos": [...],
   "notes": "..."
-}
+}}
 
 Field semantics:
 
@@ -28,6 +28,10 @@ Field semantics:
      - Descriptive sources if that’s all that’s given (e.g., "English Wikipedia",
        "680,000 hours of multilingual speech from the web").
      - Dataset URLs if present (e.g., "https://huggingface.co/datasets/bookcorpus").
+   - If a dataset is a Hugging Face dataset with a repo id like "owner/name"
+     (e.g., "lerobot/pusht"), ALWAYS return ONLY that repo id string
+     (e.g., "lerobot/pusht") in "datasets" and "primary_dataset",
+     with NO extra titles or parentheses.
    - Do NOT invent dataset names that are not clearly implied by the README.
    - Normalize obvious names to a clean, human-readable form (e.g., "bookcorpus"
      -> "BookCorpus", "c4" -> "C4").

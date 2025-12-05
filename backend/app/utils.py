@@ -162,7 +162,7 @@ def canonical_dataset_url(dataset_ref: Optional[str]) -> Optional[str]:
 
 def _wait_for_ingestion(
     artifact_id: int,
-    timeout_seconds: float = float(os.getenv("RATING_WAIT_TIMEOUT_SECONDS", "300")),
+    timeout_seconds: float = float(os.getenv("RATING_WAIT_TIMEOUT_SECONDS", "175")),
     poll_seconds: float = float(os.getenv("RATING_WAIT_POLL_SECONDS", "1")),
 ) -> Optional[ArtifactStatus]:
     """Poll for artifact ingestion to finish or until timeout."""
