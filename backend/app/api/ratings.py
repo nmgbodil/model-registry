@@ -32,7 +32,7 @@ def rate_model(artifact_id: int) -> tuple[Response, HTTPStatus]:
                     ),
                 }
             ),
-            HTTPStatus.INTERNAL_SERVER_ERROR,
+            HTTPStatus.NOT_FOUND,
         )
 
     try:
