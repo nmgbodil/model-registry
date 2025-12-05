@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from app.dals.artifacts import get_artifact_by_id
 from app.dals.ratings import get_rating_by_artifact
-
-# from app.db.models import ArtifactStatus
+from app.db.models import ArtifactStatus
 from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating
 from app.utils import build_model_rating_from_record
@@ -46,10 +45,10 @@ def get_model_rating(artifact_id: int) -> ModelRating:
                 raise ArtifactNotFoundError("Artifact not found.")
             if not artifact.type or artifact.type != "model":
                 raise ArtifactNotModelError("Artifact is not a model.")
-            # if artifact.status != ArtifactStatus.accepted:
-            #     raise RatingNotFoundError(
-            #         "Rating not found for artifact or artifact not eligible."
-            #     )
+            if artifact.status != ArtifactStatus.accepted:
+                raise RatingNotFoundError(
+                    "Rating not found for artifact or artifact not eligible."
+                )
 
             existing_rating = get_rating_by_artifact(session, artifact_id)
             if existing_rating is None:

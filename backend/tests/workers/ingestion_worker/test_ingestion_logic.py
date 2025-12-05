@@ -55,12 +55,12 @@ def _good_rating() -> Mapping[str, Any]:
 def _bad_rating() -> Mapping[str, Any]:
     """Return a non-ingestible rating payload."""
     return {
-        "net_score": 0.1,
+        "net_score": -0.6,
         "size_score": {
-            "raspberry_pi": 0.1,
-            "jetson_nano": 0.1,
-            "desktop_pc": 0.1,
-            "aws_server": 0.1,
+            "raspberry_pi": -0.6,
+            "jetson_nano": -0.6,
+            "desktop_pc": -0.6,
+            "aws_server": -0.6,
         },
     }
 
@@ -245,13 +245,11 @@ def test_ingest_artifact_rejects_on_low_rating(monkeypatch: Any) -> None:
         updated_attrs.update(attrs)
 
     monkeypatch.setattr(logic, "update_artifact_attributes", fake_update)
-    rating_calls: Dict[str, Any] = {}
-
-    def fake_persist(session: Any, art: Any, rating: Mapping[str, Any]) -> None:
-        rating_calls["called"] = True
-        rating_calls["artifact_id"] = art.id
-
-    monkeypatch.setattr(logic, "_persist_rating", fake_persist)
+    monkeypatch.setattr(
+        logic,
+        "_persist_rating",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("no rating")),
+    )
     monkeypatch.setattr(
         logic,
         "_backfill_children",
@@ -263,8 +261,6 @@ def test_ingest_artifact_rejects_on_low_rating(monkeypatch: Any) -> None:
     assert status == ArtifactStatus.rejected
     assert updated_attrs["status"] == ArtifactStatus.rejected
     assert fake_session.committed is True
-    assert rating_calls.get("called") is True
-    assert rating_calls.get("artifact_id") == artifact.id
 
 
 def test_ingest_artifact_accepts_non_model_without_rating(

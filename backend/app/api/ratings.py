@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import os
-import time
 from http import HTTPStatus
-from typing import Optional
 
 from flask import Blueprint, Response, jsonify
 
-from app.db.models import Artifact, ArtifactStatus
-from app.db.session import orm_session
+from app.db.models import ArtifactStatus
 from app.services.ratings import (
     ArtifactNotFoundError,
     ArtifactNotModelError,
@@ -18,31 +14,9 @@ from app.services.ratings import (
     RatingNotFoundError,
     get_model_rating,
 )
+from app.utils import _wait_for_ingestion
 
 bp_ratings = Blueprint("ratings", __name__, url_prefix="/artifact")
-
-
-def _wait_for_ingestion(
-    artifact_id: int,
-    timeout_seconds: float = float(os.getenv("RATING_WAIT_TIMEOUT_SECONDS", "300")),
-    poll_seconds: float = float(os.getenv("RATING_WAIT_POLL_SECONDS", "1")),
-) -> Optional[ArtifactStatus]:
-    """Poll for artifact ingestion to finish or until timeout."""
-    start = time.monotonic()
-    while True:
-        with orm_session() as session:
-            artifact = session.get(Artifact, artifact_id)
-            if artifact is None:
-                return None
-            status = artifact.status
-
-        if status != ArtifactStatus.pending:
-            return status
-
-        if time.monotonic() - start >= timeout_seconds:
-            return ArtifactStatus.pending
-
-        time.sleep(poll_seconds)
 
 
 @bp_ratings.get("/model/<int:artifact_id>/rate")

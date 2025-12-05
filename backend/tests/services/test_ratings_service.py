@@ -73,7 +73,11 @@ class TestGetModelRating:
             ratings_service, "get_artifact_by_id", lambda session, aid: artifact
         )
         monkeypatch.setattr(
-            ratings_service, "get_rating_by_artifact", lambda session, aid: None
+            ratings_service,
+            "get_rating_by_artifact",
+            lambda *args, **kwargs: (_ for _ in ()).throw(
+                AssertionError("should not fetch rating when not accepted")
+            ),
         )
         monkeypatch.setattr(
             ratings_service, "orm_session", lambda: fake_session_cm(object())

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -9,6 +10,7 @@ from flask import Flask
 
 from app import create_app
 from app.api import artifact as artifact_api
+from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
 from app.services.artifact_cost import (
     ArtifactCostError,
@@ -37,6 +39,15 @@ def test_get_artifact_cost_success(
             5: ArtifactCost(total_cost=123.0, standalone_cost=None)
         },
     )
+
+    def _accepted(
+        _artifact_id: int,
+        _timeout_seconds: float = 0,
+        _poll_seconds: float = 0,
+    ) -> ArtifactStatus:
+        return ArtifactStatus.accepted
+
+    monkeypatch.setattr(cast(Any, artifact_api), "_wait_for_ingestion", _accepted)
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/5/cost")
     assert resp.status_code == 200
@@ -58,6 +69,15 @@ def test_get_artifact_cost_with_dependency_flag(
             5738291045: ArtifactCost(total_cost=562.5, standalone_cost=562.5),
         },
     )
+
+    def _accepted(
+        _artifact_id: int,
+        _timeout_seconds: float = 0,
+        _poll_seconds: float = 0,
+    ) -> ArtifactStatus:
+        return ArtifactStatus.accepted
+
+    monkeypatch.setattr(cast(Any, artifact_api), "_wait_for_ingestion", _accepted)
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/5/cost?dependency=true")
     assert resp.status_code == 200
@@ -69,6 +89,15 @@ def test_get_artifact_cost_with_dependency_flag(
 
 def test_get_artifact_cost_invalid_dependency(flask_app: Flask) -> None:
     """Returns 400 for invalid dependency flag."""
+
+    def _accepted(
+        _artifact_id: int,
+        _timeout_seconds: float = 0,
+        _poll_seconds: float = 0,
+    ) -> ArtifactStatus:
+        return ArtifactStatus.accepted
+
+    cast(Any, artifact_api)._wait_for_ingestion = _accepted
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/5/cost?dependency=maybe")
     assert resp.status_code == 400
@@ -87,6 +116,15 @@ def test_get_artifact_cost_bad_request(
         "compute_artifact_cost",
         mock.MagicMock(side_effect=exc_class("bad input")),
     )
+
+    def _accepted(
+        _artifact_id: int,
+        _timeout_seconds: float = 0,
+        _poll_seconds: float = 0,
+    ) -> ArtifactStatus:
+        return ArtifactStatus.accepted
+
+    monkeypatch.setattr(cast(Any, artifact_api), "_wait_for_ingestion", _accepted)
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/0/cost")
     assert resp.status_code == 400
@@ -119,6 +157,15 @@ def test_get_artifact_cost_unexpected_error(
             )
         ),
     )
+
+    def _accepted(
+        _artifact_id: int,
+        _timeout_seconds: float = 0,
+        _poll_seconds: float = 0,
+    ) -> ArtifactStatus:
+        return ArtifactStatus.accepted
+
+    monkeypatch.setattr(cast(Any, artifact_api), "_wait_for_ingestion", _accepted)
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/10/cost")
     assert resp.status_code == 500
