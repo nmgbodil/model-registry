@@ -198,32 +198,36 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
 
         return archive_path, artifact_metadata
 
-    if artifact.type == "model":
-        is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
-        if is_hf and kind == "model" and repo_id:
+    try:
+        if artifact.type == "model":
+            is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
+            if is_hf and kind == "model" and repo_id:
+                print(
+                    f"ingestion: fetching HF model snapshot repo={repo_id} "
+                    f"artifact_id={artifact.id}"
+                )
+                with HFModelFetcher(repo_id) as repo:
+                    return _finalize_from_repo(repo)
+
+        if artifact.type == "dataset":
+            is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
+            if is_hf and kind == "dataset" and repo_id:
+                print(
+                    f"ingestion: fetching HF dataset snapshot repo={repo_id} "
+                    f"artifact_id={artifact.id}"
+                )
+                with HFDatasetFetcher(repo_id) as repo:
+                    return _finalize_from_repo(repo)
+
+        with open_codebase(artifact.source_url) as repo:
             print(
-                f"ingestion: fetching HF model snapshot repo={repo_id} "
+                f"ingestion: fetching code snapshot url={artifact.source_url} "
                 f"artifact_id={artifact.id}"
             )
-            with HFModelFetcher(repo_id) as repo:
-                return _finalize_from_repo(repo)
-
-    if artifact.type == "dataset":
-        is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
-        if is_hf and kind == "dataset" and repo_id:
-            print(
-                f"ingestion: fetching HF dataset snapshot repo={repo_id} "
-                f"artifact_id={artifact.id}"
-            )
-            with HFDatasetFetcher(repo_id) as repo:
-                return _finalize_from_repo(repo)
-
-    with open_codebase(artifact.source_url) as repo:
-        print(
-            f"ingestion: fetching code snapshot url={artifact.source_url} "
-            f"artifact_id={artifact.id}"
-        )
-        return _finalize_from_repo(repo)
+            return _finalize_from_repo(repo)
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
 
 
 def _derive_name_from_url(url: str, fallback: str) -> str:
@@ -289,10 +293,18 @@ def _upload_dependencies(
     return dep_ids
 
 
+def _cleanup_stale_tmp_dirs() -> None:
+    tmp_root = Path("/tmp")
+    for child in tmp_root.iterdir():
+        if child.is_dir() and child.name.startswith("artifact_fetch_"):
+            shutil.rmtree(child, ignore_errors=True)
+
+
 def ingest_artifact(artifact_id: int) -> ArtifactStatus:
     """Ingest a model artifact by scoring and updating its status."""
     if loggerInstance.logger is None:
         loggerInstance.logger = Logger()
+    _cleanup_stale_tmp_dirs()
     with orm_session() as session:
         artifact = get_artifact_by_id(session, artifact_id)
         if artifact is None:
