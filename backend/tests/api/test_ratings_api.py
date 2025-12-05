@@ -147,19 +147,19 @@ class TestRatingsApi:
         resp = client.get("/api/artifact/model/5/rate")
         assert resp.status_code == 500
 
-    def test_rate_model_returns_500_when_still_pending(
+    def test_rate_model_returns_404_when_not_ready(
         self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Responds with 500 when ingestion never completes within wait window."""
+        """Responds with 404 when rating is not yet available (pending ingestion)."""
         monkeypatch.setattr(
             ratings_api,
-            "_wait_for_ingestion",
-            lambda artifact_id: ArtifactStatus.pending,
+            "get_model_rating",
+            mock.MagicMock(side_effect=ratings_service.RatingNotFoundError()),
         )
         client = flask_app.test_client()
         resp = client.get("/api/artifact/model/5/rate")
 
-        assert resp.status_code == 500
+        assert resp.status_code == 404
         payload = resp.get_json()
         assert "error" in payload
 

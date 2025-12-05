@@ -58,7 +58,7 @@ def get_artifact_cost(
                         ),
                     }
                 ),
-                HTTPStatus.INTERNAL_SERVER_ERROR,
+                HTTPStatus.NOT_FOUND,
             )
         elif status is None:
             raise ArtifactNotFoundError("Artifact does not exist.")
