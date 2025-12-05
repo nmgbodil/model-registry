@@ -12,7 +12,7 @@ def main() -> None:
     app = create_app()
     host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
     port = int(os.environ.get("FLASK_RUN_PORT", "8000"))
-    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    debug = os.environ.get("FLASK_DEBUG", "1") == "1"
     app.run(host=host, port=port, debug=debug)
 
 

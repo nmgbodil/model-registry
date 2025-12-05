@@ -77,7 +77,6 @@ def create_app() -> Flask:
 
     # Ensure DB tables exist in dev/test
     if os.getenv("APP_ENV", "dev") in ("dev", "test"):
-        print("hello")
         try:
             from app.db.session import init_local_db
 

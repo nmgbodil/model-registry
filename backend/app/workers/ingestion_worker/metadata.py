@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from pathlib import Path
 from typing import Optional, Tuple
@@ -72,12 +71,12 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
         return None, None
 
     prompt = build_dataset_code_extraction_prompt(readme)
-    model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-    client = LLMClient(model=model)
+    client = LLMClient(model="gpt-5-nano")
 
     try:
         result = client.invoke_json(prompt)
-    except Exception:
+    except Exception as e:
+        print(f"Exception occurred: {e}")
         return None, None
 
     dataset_url = None
