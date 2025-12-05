@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from app.db.models import Artifact, Rating
+from app.db.models import Artifact, ArtifactStatus, Rating
+from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating, ModelSizeScore
 
 
@@ -155,6 +158,29 @@ def canonical_dataset_url(dataset_ref: Optional[str]) -> Optional[str]:
             return url
 
     return None
+
+
+def _wait_for_ingestion(
+    artifact_id: int,
+    timeout_seconds: float = float(os.getenv("RATING_WAIT_TIMEOUT_SECONDS", "300")),
+    poll_seconds: float = float(os.getenv("RATING_WAIT_POLL_SECONDS", "1")),
+) -> Optional[ArtifactStatus]:
+    """Poll for artifact ingestion to finish or until timeout."""
+    start = time.monotonic()
+    while True:
+        with orm_session() as session:
+            artifact = session.get(Artifact, artifact_id)
+            if artifact is None:
+                return None
+            status = artifact.status
+
+        if status != ArtifactStatus.pending:
+            return status
+
+        if time.monotonic() - start >= timeout_seconds:
+            return ArtifactStatus.pending
+
+        time.sleep(poll_seconds)
 
 
 if __name__ == "__main__":

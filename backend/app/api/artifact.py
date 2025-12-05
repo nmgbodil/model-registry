@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
 
+from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
 from app.services.artifact_cost import (
     ArtifactCostError,
@@ -13,6 +14,7 @@ from app.services.artifact_cost import (
     InvalidArtifactTypeError,
     compute_artifact_cost,
 )
+from app.utils import _wait_for_ingestion
 
 bp_artifact = Blueprint("artifact_cost", __name__, url_prefix="/artifact")
 
@@ -39,11 +41,27 @@ def get_artifact_cost(
     """Return the cost for the given artifact."""
     try:
         allowed_types = {"model", "dataset", "code"}
-        if (artifact_type or "").strip().lower() not in allowed_types:
+        if artifact_type not in allowed_types:
             raise InvalidArtifactTypeError(
                 "There is missing field(s) in the artifact_type or artifact_id or it "
                 "is formed improperly, or is invalid."
             )
+
+        status = _wait_for_ingestion(artifact_id)
+        if status == ArtifactStatus.pending:
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            "Artifact ingestion is still in progress; timed out "
+                            "waiting."
+                        ),
+                    }
+                ),
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+        elif status is None:
+            raise ArtifactNotFoundError("Artifact does not exist.")
 
         include_dependencies = _parse_dependency_flag(request.args.get("dependency"))
         cost_map = compute_artifact_cost(
