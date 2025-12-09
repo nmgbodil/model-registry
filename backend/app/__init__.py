@@ -8,6 +8,7 @@ from http import HTTPStatus
 from dotenv import load_dotenv
 from flask import Blueprint, Flask, Response, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 
 from app.api.artifact import bp_artifact as bp_artifact_cost
 from app.api.lineage import bp_lineage
@@ -15,7 +16,7 @@ from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
 from app.api.routes_reset import bp_reset
-from app.config import get_settings
+from app.config import JWTConfig, get_settings
 
 
 def create_app() -> Flask:
@@ -36,6 +37,11 @@ def create_app() -> Flask:
         expose_headers=["offset", "x-next-offset"],
         max_age=600,
     )
+
+    # JWT configuration
+    jwt_cfg = JWTConfig()
+    app.config.update(jwt_cfg.__dict__)
+    jwt = JWTManager(app)  # noqa: F841
 
     bp_master = Blueprint(
         "master", __name__, url_prefix="/api"
@@ -63,7 +69,16 @@ def create_app() -> Flask:
     def planned_tracks() -> tuple[Response, HTTPStatus]:
         """Return the list of planned tracks for implementation."""
         try:
-            return jsonify({"plannedTracks": ["Performance track"]}), HTTPStatus.OK
+            return (
+                jsonify(
+                    {
+                        "plannedTracks": [
+                            "Access control track",
+                        ]
+                    }
+                ),
+                HTTPStatus.OK,
+            )
         except Exception:
             return (
                 jsonify(
