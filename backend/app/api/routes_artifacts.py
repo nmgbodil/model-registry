@@ -23,11 +23,6 @@ bp_artifacts = Blueprint("artifacts", __name__, url_prefix="/artifacts")
 bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
 
 
-def _require_auth() -> Optional[ResponseReturnValue]:
-    """Placeholder auth hook; allow all for now."""
-    return None
-
-
 def _to_metadata(artifact: Artifact) -> Dict[str, Any]:
     """Return ArtifactMetadata { name, id, type }."""
     art_type = getattr(artifact, "type", None) or "model"
@@ -87,10 +82,6 @@ def _trigger_ingestion_lambda(artifact_id: int) -> None:
 @bp_artifacts.post("")
 def artifacts_list() -> ResponseReturnValue:
     """List artifacts matching the provided queries."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     body: Any = request.get_json(silent=True)
     if body is None:
         raw = request.get_data(cache=False, as_text=True)
@@ -152,10 +143,6 @@ def artifacts_list() -> ResponseReturnValue:
 @bp_artifacts.get("/<artifact_type>/<int:artifact_id>")
 def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Return artifact envelope by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
@@ -168,10 +155,6 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")
 def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Update artifact contents by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     metadata = cast(Dict[str, Any], body.get("metadata") or {})
     data = cast(Dict[str, Any], body.get("data") or {})
@@ -203,10 +186,6 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 @bp_artifacts.delete("/<artifact_type>/<int:artifact_id>")
 def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Delete artifact by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
@@ -300,10 +279,6 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
 @bp_artifact.post("/byRegEx")
 def artifact_by_regex() -> ResponseReturnValue:
     """Search artifacts by regex token over names."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     regex_val = body.get("regex")
     if not isinstance(regex_val, str) or not regex_val.strip():
@@ -325,10 +300,6 @@ def artifact_by_regex() -> ResponseReturnValue:
 @bp_artifact.get("/byName/<name>")
 def artifact_by_name(name: str) -> ResponseReturnValue:
     """List artifact metadata by exact name."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
     with orm_session() as session:
         rows = (
             session.query(Artifact)

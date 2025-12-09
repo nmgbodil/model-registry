@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 import uuid
 
+import bcrypt
+from flask_jwt_extended import create_access_token
+
 from app.dals.users import create_user, get_user_by_username
 from app.db.models import UserRole
 from app.db.session import orm_session
@@ -22,6 +25,10 @@ class UsernameTakenError(AuthServiceError):
     """Raised when username already exists."""
 
 
+class AuthenticationFailedError(AuthServiceError):
+    """Raised when username/password are invalid."""
+
+
 def _validate_password(pw: str) -> None:
     if len(pw) < 8:
         raise InvalidRegistrationError("Password must be at least 8 characters long.")
@@ -35,11 +42,6 @@ def _validate_password(pw: str) -> None:
 
 def register_user(username: str, password: str) -> dict[str, str]:
     """Register a new user with hashed password."""
-    try:
-        import bcrypt
-    except Exception as exc:
-        raise AuthServiceError("bcrypt is required for registration.") from exc
-
     if not username.strip():
         raise InvalidRegistrationError("Username is required.")
     _validate_password(password)
@@ -56,7 +58,27 @@ def register_user(username: str, password: str) -> dict[str, str]:
             user_id=user_id,
             username=username,
             password_hash=pw_hash.decode("utf-8"),
-            role=UserRole.admin,
+            role=UserRole.searcher,
         )
         session.commit()
         return {"id": user_id, "username": username}
+
+
+def authenticate_user(username: str, password: str) -> str:
+    """Authenticate a user and return a bearer token string."""
+    if not username.strip() or not password:
+        raise AuthenticationFailedError("Invalid username or password.")
+
+    with orm_session() as session:
+        user = get_user_by_username(session, username)
+        if user is None:
+            raise AuthenticationFailedError("Invalid username or password.")
+        if not bcrypt.checkpw(
+            password.encode("utf-8"), user.password_hash.encode("utf-8")
+        ):
+            raise AuthenticationFailedError("Invalid username or password.")
+
+        token = create_access_token(
+            identity=user.id, additional_claims={"role": user.role.value}
+        )
+        return f"bearer {token}"

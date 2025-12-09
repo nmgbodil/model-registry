@@ -7,6 +7,8 @@ import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
+from flask_jwt_extended import get_jwt_identity
+
 from app.db.models import Artifact, ArtifactStatus, Rating
 from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating, ModelSizeScore
@@ -157,6 +159,17 @@ def canonical_dataset_url(dataset_ref: Optional[str]) -> Optional[str]:
         if norm_key in ref_norm or ref_norm in norm_key:
             return url
 
+    return None
+
+
+def get_user_id_from_token() -> Optional[str]:
+    """Extract the user id from the current JWT, if present.
+
+    TODO: Implement cache lookup to track API request counts per user.
+    """
+    identity = get_jwt_identity()
+    if isinstance(identity, str) and identity:
+        return identity
     return None
 
 
