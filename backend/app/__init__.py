@@ -11,6 +11,7 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
 from app.api.artifact import bp_artifact as bp_artifact_cost
+from app.api.auth import bp_auth
 from app.api.lineage import bp_lineage
 from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
@@ -54,6 +55,7 @@ def create_app() -> Flask:
     bp_master.register_blueprint(bp_artifact)
     bp_master.register_blueprint(bp_artifact_cost)
     bp_master.register_blueprint(bp_lineage)
+    bp_master.register_blueprint(bp_auth)
     bp_master.register_blueprint(bp_reset)
 
     @bp_master.get("/")

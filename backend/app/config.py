@@ -19,6 +19,8 @@ class JWTConfig:
 
     JWT_SECRET_KEY: Optional[str] = os.getenv("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES: timedelta = timedelta(hours=10)
+    JWT_HEADER_NAME: str = "X-Authorization"
+    JWT_HEADER_TYPE: str = "bearer"
 
 
 @dataclass(frozen=True)
