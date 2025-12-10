@@ -26,7 +26,7 @@ def get_parent_artifact(repo: RepoView) -> Optional[str]:
 
     # Aligns with common Hugging Face configs where downstream models
     # declare their base via this field.
-    parent_ref = data.get("base_model_name_or_path")
+    parent_ref = data.get("base_model_name_or_path") or data.get("_name_or_path")
     if isinstance(parent_ref, str) and parent_ref.strip():
         return parent_ref.strip()
 
