@@ -5,6 +5,7 @@ from __future__ import annotations
 from http import HTTPStatus
 
 from flask import Blueprint, Response, jsonify
+from flask_jwt_extended import jwt_required
 
 from app.db.models import ArtifactStatus
 from app.services.ratings import (
@@ -14,14 +15,25 @@ from app.services.ratings import (
     RatingNotFoundError,
     get_model_rating,
 )
-from app.utils import _wait_for_ingestion
+from app.utils import (
+    _wait_for_ingestion,
+    get_user_id_from_token,
+    role_allowed,
+)
 
 bp_ratings = Blueprint("ratings", __name__, url_prefix="/artifact")
 
 
 @bp_ratings.get("/model/<int:artifact_id>/rate")
+@jwt_required()  # type: ignore[misc]
 def rate_model(artifact_id: int) -> tuple[Response, HTTPStatus]:
     """Return a rating for the given model artifact."""
+    get_user_id_from_token()
+    if not role_allowed({"uploader", "downloader", "searcher"}):
+        return (
+            jsonify({"error": "forbidden"}),
+            HTTPStatus.FORBIDDEN,
+        )
     status = _wait_for_ingestion(artifact_id)
     if status == ArtifactStatus.pending:
         return (

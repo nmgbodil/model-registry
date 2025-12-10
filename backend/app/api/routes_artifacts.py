@@ -11,10 +11,11 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
+from flask_jwt_extended import jwt_required
 
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
-from app.utils import artifact_name_from_url
+from app.utils import artifact_name_from_url, get_user_id_from_token, role_allowed
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
 load_dotenv()
@@ -23,9 +24,17 @@ bp_artifacts = Blueprint("artifacts", __name__, url_prefix="/artifacts")
 bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
 
 
-def _require_auth() -> Optional[ResponseReturnValue]:
-    """Placeholder auth hook; allow all for now."""
-    return None
+def _forbidden() -> ResponseReturnValue:
+    return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
+
+def _require_roles(
+    allowed: Set[str],
+) -> tuple[Optional[str], Optional[ResponseReturnValue]]:
+    """Return user_id and a forbidden response if current role is not allowed."""
+    if not role_allowed(allowed):
+        return None, _forbidden()
+    return get_user_id_from_token(), None
 
 
 def _to_metadata(artifact: Artifact) -> Dict[str, Any]:
@@ -85,12 +94,12 @@ def _trigger_ingestion_lambda(artifact_id: int) -> None:
 
 
 @bp_artifacts.post("")
+@jwt_required()  # type: ignore[misc]
 def artifacts_list() -> ResponseReturnValue:
     """List artifacts matching the provided queries."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
+    if forbidden:
+        return forbidden
     body: Any = request.get_json(silent=True)
     if body is None:
         raw = request.get_data(cache=False, as_text=True)
@@ -150,12 +159,12 @@ def artifacts_list() -> ResponseReturnValue:
 
 
 @bp_artifacts.get("/<artifact_type>/<int:artifact_id>")
+@jwt_required()  # type: ignore[misc]
 def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Return artifact envelope by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader", "downloader"})
+    if forbidden:
+        return forbidden
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
@@ -166,12 +175,12 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")
+@jwt_required()  # type: ignore[misc]
 def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Update artifact contents by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader"})
+    if forbidden:
+        return forbidden
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     metadata = cast(Dict[str, Any], body.get("metadata") or {})
     data = cast(Dict[str, Any], body.get("data") or {})
@@ -201,12 +210,12 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 
 @bp_artifacts.delete("/<artifact_type>/<int:artifact_id>")
+@jwt_required()  # type: ignore[misc]
 def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Delete artifact by type and ID."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader"})
+    if forbidden:
+        return forbidden
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
@@ -221,12 +230,12 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
 
 
 @bp_artifact.post("/<artifact_type>")
+@jwt_required()  # type: ignore[misc]
 def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
     """Register a new artifact by providing a downloadable source url."""
-    # auth_err = _require_auth()
-    # if auth_err is not None:
-    #     return auth_err
-
+    user_id, forbidden = _require_roles({"uploader"})
+    if forbidden:
+        return forbidden  # type: ignore[return-value]
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     url_raw = body.get("url")
     if not isinstance(url_raw, str) or not url_raw.strip():
@@ -256,6 +265,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
             name=artifact_name,
             type=artifact_type,
             source_url=url,
+            created_by=user_id,
         )
         session.add(artifact)
         session.flush()
@@ -298,12 +308,12 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
 
 
 @bp_artifact.post("/byRegEx")
+@jwt_required()  # type: ignore[misc]
 def artifact_by_regex() -> ResponseReturnValue:
     """Search artifacts by regex token over names."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
+    if forbidden:
+        return forbidden
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     regex_val = body.get("regex")
     if not isinstance(regex_val, str) or not regex_val.strip():
@@ -323,12 +333,12 @@ def artifact_by_regex() -> ResponseReturnValue:
 
 
 @bp_artifact.get("/byName/<name>")
+@jwt_required()  # type: ignore[misc]
 def artifact_by_name(name: str) -> ResponseReturnValue:
     """List artifact metadata by exact name."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
+    if forbidden:
+        return forbidden
     with orm_session() as session:
         rows = (
             session.query(Artifact)

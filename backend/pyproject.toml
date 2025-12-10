@@ -36,7 +36,7 @@ dev = [
   "flake8",
   "flake8-docstrings",
   "isort",
-  "mypy",
+  "mypy==1.18.2",
   "pytest",
   "pytest-cov",
   "pre-commit",
