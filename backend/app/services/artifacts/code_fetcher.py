@@ -49,6 +49,7 @@ def open_codebase(
     Raises:
         ValueError: If the URL is unsupported or invalid.
     """
+    print("url:", url)
     clean_url = url[:-4] if url.endswith(".git") else url
     host, parts = _parse(clean_url)
     if _is_hf_space(host, parts):
