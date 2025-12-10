@@ -274,10 +274,10 @@ def _upload_dependencies(
 
         archive_path, meta = _fetch_artifact_archive(dep_artifact)
         try:
-            s3_uri = upload_artifact(archive_path, dep_artifact.id)
+            s3_key = upload_artifact(archive_path, dep_artifact.id)
             attrs: Dict[str, Any] = {
                 "status": ArtifactStatus.accepted,
-                "s3_key": s3_uri,
+                "s3_key": s3_key,
             }
             attrs.update({k: v for k, v in meta.items() if v is not None})
             update_artifact_attributes(session, dep_artifact, **attrs)
@@ -354,7 +354,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
             archive_path = None  # for debugging
             try:
                 archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
-                s3_uri = upload_artifact(archive_path, artifact.id)
+                s3_key = upload_artifact(archive_path, artifact.id)
                 combined_metadata = {
                     **{k: v for k, v in preview_metadata.items() if v is not None},
                     **{k: v for k, v in artifact_metadata.items() if v is not None},
@@ -364,7 +364,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 combined_metadata.pop("code_url", None)
                 attrs: Dict[str, Any] = {
                     "status": ArtifactStatus.accepted,
-                    "s3_key": s3_uri,
+                    "s3_key": s3_key,
                 }
 
                 parent_ref = combined_metadata.get("parent_artifact_ref")

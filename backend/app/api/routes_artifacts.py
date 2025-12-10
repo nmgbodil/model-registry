@@ -15,6 +15,7 @@ from flask_jwt_extended import jwt_required
 
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
+from app.services.storage import generate_presigned_url
 from app.utils import artifact_name_from_url, get_user_id_from_token, role_allowed
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
@@ -47,10 +48,14 @@ def _to_envelope(artifact: Artifact) -> Dict[str, Any]:
     """Return { metadata, data } envelope for an artifact."""
     url = artifact.source_url or ""
     show_url = url.startswith(("http://", "https://", "file://"))
-    return {
+    response = {
         "metadata": _to_metadata(artifact),
         "data": {"url": url if show_url else None},
     }
+    presigned_url = generate_presigned_url(key=artifact.s3_key)
+    if presigned_url is not None:
+        response["data"]["download_url"] = presigned_url
+    return response
 
 
 def _validate_http_url(url: str) -> bool:

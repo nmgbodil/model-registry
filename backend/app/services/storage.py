@@ -12,7 +12,7 @@ and workers.
 """
 
 import os
-from typing import List
+from typing import Any, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -29,40 +29,30 @@ s3 = boto3.client("s3", region_name=AWS_REGION)
 
 
 def upload_artifact(file_path: str, artifact_id: int) -> str:
-    """Upload an artifact to S3 and return its S3 URI.
+    """Upload an artifact to S3 and return its object key.
 
     The S3 object key uses the pattern ``artifact/{artifact_id}/{filename}``.
-    Returns the ``s3://`` URI of the uploaded object on success.
+    Returns the object key on success.
     """
     try:
         key = f"artifact/{artifact_id}/{os.path.basename(file_path)}"
         s3.upload_file(file_path, S3_BUCKET, key)
-        s3_uri = f"s3://{S3_BUCKET}/{key}"
-        print(f"Uploaded {file_path} to {s3_uri}")
-        return s3_uri
+        print(f"Uploaded {file_path} to s3://{S3_BUCKET}/{key}")
+        return key
     except ClientError as e:
         print(f"S3 upload failed: {e}")
         raise
 
 
-def download_artifact(
-    artifact_id: int, filename: str, output_dir: str = "./downloads"
-) -> str:
-    """Download a specific artifact file from S3 to a local directory.
-
-    Creates ``output_dir`` if it does not exist and returns the local
-    path to the downloaded file.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    key = f"artifact/{artifact_id}/{filename}"
-    output_path = os.path.join(output_dir, filename)
-    try:
-        s3.download_file(S3_BUCKET, key, output_path)
-        print(f"Downloaded {key} to {output_path}")
-        return output_path
-    except ClientError as e:
-        print(f"S3 download failed: {e}")
-        raise
+def generate_presigned_url(key: Optional[str], expires: int = 3600) -> Any:
+    """Generate a temporary presigned URL for an object key."""
+    if key is None:
+        return None
+    return s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": S3_BUCKET, "Key": key},
+        ExpiresIn=expires,
+    )
 
 
 def list_artifacts(prefix: str = "artifact/") -> List[str]:
