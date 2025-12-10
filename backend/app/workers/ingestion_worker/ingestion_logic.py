@@ -272,8 +272,9 @@ def _upload_dependencies(
             f"dep_id={dep_artifact.id} url={source}"
         )
 
-        archive_path, meta = _fetch_artifact_archive(dep_artifact)
+        archive_path = None
         try:
+            archive_path, meta = _fetch_artifact_archive(dep_artifact)
             s3_key = upload_artifact(archive_path, dep_artifact.id)
             attrs: Dict[str, Any] = {
                 "status": ArtifactStatus.accepted,
@@ -282,6 +283,8 @@ def _upload_dependencies(
             attrs.update({k: v for k, v in meta.items() if v is not None})
             update_artifact_attributes(session, dep_artifact, **attrs)
             dep_ids[field] = dep_artifact.id
+        except Exception as exc:
+            print(f"ingestion dependency failed: {exc}")
         finally:
             if archive_path and os.path.exists(archive_path):
                 try:
