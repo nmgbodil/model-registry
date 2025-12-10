@@ -20,14 +20,14 @@ from huggingface_hub import snapshot_download  # noqa: E402
 from .repo_view import RepoView  # noqa: E402
 
 MODEL_ALLOW = [
-    "README.md",
-    "README.*",
     "config.json",
+    "tokenizer.json",
     "model_index.json",
-    "tokenizer.*",
-    "vocab.*",
-    "pytorch_model.bin",
-    "tf_model.h5",
+    "tokenizer.model",
+    "vocab.json",
+    "vocab.txt",
+    "*.md",
+    "LICENSE*",
 ]
 MODEL_PREVIEW_ALLOW = [
     "README.md",
@@ -94,6 +94,7 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
                 tqdm_class=None,
                 local_dir=str(target),
                 token=token,
+                max_workers=1,
             )
         )
         self._local_path = local_path
@@ -167,6 +168,6 @@ class HFModelFetcher(_BaseSnapshotFetcher):
             repo_id,
             "model",
             revision,
-            allow_patterns or None,
+            allow_patterns or MODEL_ALLOW,
             use_shared_cache,
         )

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from app.services.artifacts.model_fetcher import HFModelFetcher
+from app.services.artifacts.model_fetcher import MODEL_ALLOW, HFModelFetcher
 
 
 class TestHFModelFetcher:
@@ -29,7 +29,7 @@ class TestHFModelFetcher:
         kwargs = snapshot_download_mock.call_args.kwargs
         assert kwargs["repo_type"] == "model"
         assert kwargs["repo_id"] == "org/name"
-        assert kwargs["allow_patterns"] is None
+        assert kwargs["allow_patterns"] == MODEL_ALLOW
 
     @patch("app.services.artifacts.model_fetcher.snapshot_download")
     def test_base_snapshot_fetcher_removes_large_files(
