@@ -181,7 +181,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
         ),
     )
     monkeypatch.setattr(
-        logic, "upload_artifact", lambda path, artifact_id: "s3://bucket/key"
+        logic, "upload_artifact", lambda path, artifact_id: "artifact/key"
     )
     monkeypatch.setattr(
         logic, "get_artifact_id_by_ref", lambda s, ref, exclude_id=None: 99
@@ -203,7 +203,7 @@ def test_ingest_artifact_accepts_model(monkeypatch: Any, tmp_path: Any) -> None:
 
     assert status is ArtifactStatus.accepted
     assert updated_attrs["status"] == ArtifactStatus.accepted
-    assert updated_attrs["s3_key"] == "s3://bucket/key"
+    assert updated_attrs["s3_key"] == "artifact/key"
     assert updated_attrs["parent_artifact_id"] == 99
     assert updated_attrs["dataset_id"] == 7
     assert updated_attrs["code_id"] == 8
@@ -294,7 +294,7 @@ def test_ingest_artifact_accepts_non_model_without_rating(
         ),
     )
     monkeypatch.setattr(
-        logic, "upload_artifact", lambda path, artifact_id: "s3://bucket/dataset"
+        logic, "upload_artifact", lambda path, artifact_id: "artifact/dataset"
     )
     monkeypatch.setattr(logic, "get_artifact_id_by_ref", lambda *args, **kwargs: None)
 
@@ -315,7 +315,7 @@ def test_ingest_artifact_accepts_non_model_without_rating(
 
     assert status == ArtifactStatus.accepted
     assert updated_attrs["status"] == ArtifactStatus.accepted
-    assert updated_attrs["s3_key"] == "s3://bucket/dataset"
+    assert updated_attrs["s3_key"] == "artifact/dataset"
     assert updated_attrs["checksum_sha256"] == "xyz"
     assert fake_session.committed is True
 
