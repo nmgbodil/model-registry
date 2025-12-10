@@ -7,7 +7,7 @@ import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt, get_jwt_identity
 
 from app.db.models import Artifact, ArtifactStatus, Rating
 from app.db.session import orm_session
@@ -167,10 +167,36 @@ def get_user_id_from_token() -> Optional[str]:
 
     TODO: Implement cache lookup to track API request counts per user.
     """
-    identity = get_jwt_identity()
+    try:
+        identity = get_jwt_identity()
+    except Exception:
+        return None
     if isinstance(identity, str) and identity:
         return identity
     return None
+
+
+def get_user_role_from_token() -> Optional[str]:
+    """Return the role claim from the current JWT, if present."""
+    try:
+        claims = get_jwt()
+    except Exception:
+        return None
+    if isinstance(claims, dict):
+        role = claims.get("role")
+        if isinstance(role, str) and role:
+            return role
+    return None
+
+
+def role_allowed(allowed_roles: set[str]) -> bool:
+    """Check whether the current JWT role is in the allowed set (admins always pass)."""
+    role = get_user_role_from_token()
+    if role is None:
+        return False
+    if role == "admin":
+        return True
+    return role in allowed_roles
 
 
 def _wait_for_ingestion(

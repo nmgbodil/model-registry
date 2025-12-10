@@ -4,6 +4,7 @@ from http import HTTPStatus
 from typing import Any, Dict
 
 from flask import Blueprint, Response, jsonify, request
+from flask_jwt_extended import jwt_required
 
 from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
@@ -14,7 +15,11 @@ from app.services.artifact_cost import (
     InvalidArtifactTypeError,
     compute_artifact_cost,
 )
-from app.utils import _wait_for_ingestion
+from app.utils import (
+    _wait_for_ingestion,
+    get_user_id_from_token,
+    role_allowed,
+)
 
 bp_artifact = Blueprint("artifact_cost", __name__, url_prefix="/artifact")
 
@@ -35,10 +40,14 @@ def _parse_dependency_flag(raw: str | None) -> bool:
 
 
 @bp_artifact.get("/<artifact_type>/<int:artifact_id>/cost")
+@jwt_required()  # type: ignore[misc]
 def get_artifact_cost(
     artifact_type: str, artifact_id: int
 ) -> tuple[Response, HTTPStatus]:
     """Return the cost for the given artifact."""
+    get_user_id_from_token()
+    if not role_allowed({"uploader", "downloader", "searcher"}):
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
     try:
         allowed_types = {"model", "dataset", "code"}
         if artifact_type not in allowed_types:

@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 from flask import Flask
+from flask_jwt_extended import create_access_token
 
 from app import create_app
 from app.api import ratings as ratings_api
@@ -14,19 +15,44 @@ from app.schemas.model_rating import ModelRating, ModelSizeScore
 from app.services import ratings as ratings_service
 
 
+@pytest.fixture(autouse=True)
+def disable_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass JWT verification during API tests."""
+    monkeypatch.setattr(
+        "flask_jwt_extended.view_decorators.verify_jwt_in_request",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr("app.utils.get_user_role_from_token", lambda: "admin")
+    monkeypatch.setattr("app.utils.get_user_id_from_token", lambda: "test-user")
+
+
 @pytest.fixture()
 def flask_app() -> Flask:
     """Provide a test application instance."""
+    import os
+
+    os.environ["JWT_SECRET_KEY"] = "test-secret"
     app = create_app()
     app.config["TESTING"] = True
     return app
+
+
+@pytest.fixture()
+def auth_headers(flask_app: Flask) -> dict[str, str]:
+    """Provide authorization headers with a test JWT."""
+    with flask_app.app_context():
+        token = create_access_token(identity="test-user")
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestRatingsApi:
     """Tests for the ratings API endpoint."""
 
     def test_rate_model_success(
-        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+        self,
+        flask_app: Flask,
+        auth_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Returns rating payload when service succeeds."""
         model_rating = ModelRating(
@@ -73,7 +99,7 @@ class TestRatingsApi:
         )
 
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/1/rate")
+        resp = client.get("/api/artifact/model/1/rate", headers=auth_headers)
 
         assert resp.status_code == 200
         payload = resp.get_json()
@@ -81,7 +107,10 @@ class TestRatingsApi:
         assert payload["net_score"] == model_rating.net_score
 
     def test_rate_model_invalid_id(
-        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+        self,
+        flask_app: Flask,
+        auth_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Responds with 400 when artifact id is invalid."""
         monkeypatch.setattr(
@@ -95,7 +124,7 @@ class TestRatingsApi:
             lambda artifact_id: ArtifactStatus.accepted,
         )
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/0/rate")
+        resp = client.get("/api/artifact/model/0/rate", headers=auth_headers)
         assert resp.status_code == 400
 
     @pytest.mark.parametrize(
@@ -109,6 +138,7 @@ class TestRatingsApi:
     def test_rate_model_not_found_errors(
         self,
         flask_app: Flask,
+        auth_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
         exc_class: type[Exception],
     ) -> None:
@@ -124,13 +154,16 @@ class TestRatingsApi:
             lambda artifact_id: ArtifactStatus.accepted,
         )
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/5/rate")
+        resp = client.get("/api/artifact/model/5/rate", headers=auth_headers)
 
         assert resp.status_code == 404
         assert "error" in resp.get_json()
 
     def test_rate_model_unexpected_error_returns_500(
-        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+        self,
+        flask_app: Flask,
+        auth_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Responds with 500 when service raises unexpectedly."""
         monkeypatch.setattr(
@@ -144,11 +177,14 @@ class TestRatingsApi:
             lambda artifact_id: ArtifactStatus.accepted,
         )
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/5/rate")
+        resp = client.get("/api/artifact/model/5/rate", headers=auth_headers)
         assert resp.status_code == 500
 
     def test_rate_model_returns_404_when_not_ready(
-        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+        self,
+        flask_app: Flask,
+        auth_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Responds with 404 when rating is not yet available (pending ingestion)."""
         monkeypatch.setattr(
@@ -157,14 +193,17 @@ class TestRatingsApi:
             mock.MagicMock(side_effect=ratings_service.RatingNotFoundError()),
         )
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/5/rate")
+        resp = client.get("/api/artifact/model/5/rate", headers=auth_headers)
 
         assert resp.status_code == 404
         payload = resp.get_json()
         assert "error" in payload
 
     def test_rate_model_returns_404_when_artifact_missing_during_wait(
-        self, flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+        self,
+        flask_app: Flask,
+        auth_headers: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Responds with 404 when artifact disappears before rating fetch."""
         monkeypatch.setattr(
@@ -173,7 +212,7 @@ class TestRatingsApi:
             lambda artifact_id: None,
         )
         client = flask_app.test_client()
-        resp = client.get("/api/artifact/model/5/rate")
+        resp = client.get("/api/artifact/model/5/rate", headers=auth_headers)
 
         assert resp.status_code == 404
         payload = resp.get_json()
