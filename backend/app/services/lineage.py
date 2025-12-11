@@ -33,12 +33,10 @@ def _add_node(
 ) -> None:
     if any(node.artifact_id == artifact.id for node in graph.nodes):
         return
-    default_source = source or "config_json"
     graph.nodes.append(
         ArtifactLineageNode(
             artifact_id=artifact.id,
             name=artifact.name,
-            source=default_source,
             metadata=(
                 {"source_url": artifact.source_url} if artifact.source_url else None
             ),
@@ -76,15 +74,15 @@ def _traverse_parents(
                 parent = session.get(Artifact, parent_id) if parent_id else None
         if parent is None:
             break
-        _add_node(graph, parent, "parent_artifact_id")
-        _add_edge(graph, parent.id, current.id, "parent")
+        _add_node(graph, parent, None)
+        _add_edge(graph, parent.id, current.id, "base_model")
         current = parent
 
 
 def _traverse_children(artifact: Artifact, graph: ArtifactLineageGraph) -> None:
     def _walk_children(parent: Artifact) -> None:
         for child in parent.children:
-            _add_node(graph, child, "parent_artifact_id")
+            _add_node(graph, child, None)
             _add_edge(graph, parent.id, child.id, "child")
             _walk_children(child)
 
@@ -103,7 +101,7 @@ def get_lineage_graph(artifact_id: int) -> ArtifactLineageGraph:
                 raise ArtifactNotFoundError("Artifact not found.")
 
             graph = ArtifactLineageGraph(nodes=[], edges=[])
-            _add_node(graph, artifact, "registry")
+            _add_node(graph, artifact, None)
             _traverse_parents(session, artifact, graph)
             _traverse_children(artifact, graph)
             return graph

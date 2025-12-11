@@ -4,32 +4,24 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ArtifactLineageNode(BaseModel):
     """Node in a lineage graph."""
 
-    artifact_id: int = Field(..., description="Unique identifier for the artifact.")
-    name: str = Field(..., description="Human-readable label for the node.")
-    source: Optional[str] = Field(
-        default=None, description="Provenance for how the node was discovered."
-    )
-    metadata: Optional[dict[str, Any]] = Field(
-        default=None, description="Optional metadata captured for lineage analysis."
-    )
+    artifact_id: int
+    name: str
+    source: Optional[str] = "config_json"
+    metadata: Optional[dict[str, Any]]
 
 
 class ArtifactLineageEdge(BaseModel):
     """Directed edge between two lineage nodes."""
 
-    from_node_artifact_id: int = Field(
-        ..., description="Identifier of the upstream node."
-    )
-    to_node_artifact_id: int = Field(
-        ..., description="Identifier of the downstream node."
-    )
-    relationship: str = Field(..., description="Qualitative description of the edge.")
+    from_node_artifact_id: int
+    to_node_artifact_id: int
+    relationship: str
 
 
 class ArtifactLineageGraph(BaseModel):
