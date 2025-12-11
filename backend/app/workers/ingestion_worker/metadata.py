@@ -112,14 +112,22 @@ def get_license(repo_id: str) -> Optional[str]:
     """Return the license for a HF model by inspecting cardData or license tags."""
     hf_client = HFClient()
     try:
+        print(f"get_license: fetching metadata for repo_id={repo_id}")
         metadata = hf_client.get_model_metadata(repo_id)
-    except Exception:
+    except Exception as exc:
+        print(
+            f"get_license: failed to fetch metadata for repo_id={repo_id} error={exc}"
+        )
         return None
 
     card = metadata.get("cardData")
     if isinstance(card, dict):
         license = card.get("license")
         if isinstance(license, str) and license.strip():
+            print(
+                "get_license: license found in cardData "
+                f"repo_id={repo_id} license={license.strip()}"
+            )
             return license.strip()
 
     tags = metadata.get("tags")
@@ -131,6 +139,10 @@ def get_license(repo_id: str) -> Optional[str]:
             if match:
                 license = match.group(1).strip()
                 if license:
+                    print(
+                        "get_license: license found in tags "
+                        f"repo_id={repo_id} license={license}"
+                    )
                     return license
 
     return None
