@@ -191,10 +191,12 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         }
 
         # Check for license for models only for now
-        if artifact.type == "model":
-            license = ingestion_metadata.get_license(artifact.name)
-            if license:
-                artifact_metadata["license"] = license
+        if artifact.type == "model" and artifact.source_url:
+            is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
+            if is_hf and kind == "model" and repo_id:
+                license = ingestion_metadata.get_license(repo_id)
+                if license:
+                    artifact_metadata["license"] = license
 
         return archive_path, artifact_metadata
 
