@@ -56,18 +56,11 @@ def get_artifact_cost(
                 "is formed improperly, or is invalid."
             )
 
+        # Wait until artifact ingestion is complete
         status = _wait_for_ingestion(artifact_id)
         if status == ArtifactStatus.pending:
-            return (
-                jsonify(
-                    {
-                        "error": (
-                            "Artifact ingestion is still in progress; timed out "
-                            "waiting."
-                        ),
-                    }
-                ),
-                HTTPStatus.NOT_FOUND,
+            raise ArtifactNotFoundError(
+                "Artifact ingestion is still in progress; timed out waiting."
             )
         elif status is None:
             raise ArtifactNotFoundError("Artifact does not exist.")
