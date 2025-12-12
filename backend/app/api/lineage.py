@@ -7,7 +7,7 @@ from http import HTTPStatus
 from flask import Blueprint, Response, jsonify
 from flask_jwt_extended import jwt_required
 
-from app.schemas.lineage import ArtifactLineageGraph
+from app.schemas.lineage import Graph
 from app.services.lineage import (
     ArtifactNotFoundError,
     InvalidArtifactIdError,
@@ -27,7 +27,7 @@ def get_artifact_lineage(artifact_id: int) -> tuple[Response, HTTPStatus]:
     if not role_allowed({"uploader", "downloader", "searcher"}):
         return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
     try:
-        graph: ArtifactLineageGraph = get_lineage_graph(artifact_id)
+        graph: Graph = get_lineage_graph(artifact_id)
         return jsonify(graph.model_dump()), HTTPStatus.OK
     except InvalidArtifactIdError:
         return (
