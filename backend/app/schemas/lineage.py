@@ -7,7 +7,7 @@ from typing import Any, Optional
 from pydantic import BaseModel
 
 
-class ArtifactLineageNode(BaseModel):
+class Node(BaseModel):
     """Node in a lineage graph."""
 
     artifact_id: int
@@ -16,7 +16,7 @@ class ArtifactLineageNode(BaseModel):
     metadata: Optional[dict[str, Any]]
 
 
-class ArtifactLineageEdge(BaseModel):
+class Edge(BaseModel):
     """Directed edge between two lineage nodes."""
 
     from_node_artifact_id: int
@@ -24,8 +24,8 @@ class ArtifactLineageEdge(BaseModel):
     relationship: str
 
 
-class ArtifactLineageGraph(BaseModel):
+class Graph(BaseModel):
     """Complete lineage graph."""
 
-    nodes: list[ArtifactLineageNode]
-    edges: list[ArtifactLineageEdge]
+    nodes: list[Node]
+    edges: list[Edge]
