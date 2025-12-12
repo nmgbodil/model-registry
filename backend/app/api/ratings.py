@@ -34,20 +34,17 @@ def rate_model(artifact_id: int) -> tuple[Response, HTTPStatus]:
             jsonify({"error": "forbidden"}),
             HTTPStatus.FORBIDDEN,
         )
-    status = _wait_for_ingestion(artifact_id)
-    if status == ArtifactStatus.pending:
-        return (
-            jsonify(
-                {
-                    "error": (
-                        "Artifact ingestion is still in progress; timed out waiting."
-                    ),
-                }
-            ),
-            HTTPStatus.NOT_FOUND,
-        )
 
     try:
+        # Wait until artifact ingestion is complete
+        status = _wait_for_ingestion(artifact_id)
+        if status == ArtifactStatus.pending:
+            raise ArtifactNotFoundError(
+                "Artifact ingestion is still in progress; timed out waiting."
+            )
+        elif status is None:
+            raise ArtifactNotFoundError("Artifact does not exist.")
+
         rating = get_model_rating(artifact_id)
         return jsonify(rating.model_dump()), HTTPStatus.OK
     except InvalidArtifactIdError:

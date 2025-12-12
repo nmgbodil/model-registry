@@ -15,7 +15,13 @@ from flask_jwt_extended import jwt_required
 
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
-from app.utils import artifact_name_from_url, get_user_id_from_token, role_allowed
+from app.services.storage import generate_presigned_url
+from app.utils import (
+    _wait_for_ingestion,
+    artifact_name_from_url,
+    get_user_id_from_token,
+    role_allowed,
+)
 from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
 load_dotenv()
@@ -47,10 +53,14 @@ def _to_envelope(artifact: Artifact) -> Dict[str, Any]:
     """Return { metadata, data } envelope for an artifact."""
     url = artifact.source_url or ""
     show_url = url.startswith(("http://", "https://", "file://"))
-    return {
+    response = {
         "metadata": _to_metadata(artifact),
         "data": {"url": url if show_url else None},
     }
+    presigned_url = generate_presigned_url(key=artifact.s3_key)
+    if presigned_url is not None:
+        response["data"]["download_url"] = presigned_url
+    return response
 
 
 def _validate_http_url(url: str) -> bool:
@@ -165,6 +175,18 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     _user_id, forbidden = _require_roles({"uploader", "downloader"})
     if forbidden:
         return forbidden
+
+    # Wait until artifact ingestion is complete
+    status = _wait_for_ingestion(artifact_id)
+    if status == ArtifactStatus.pending:
+        return (
+            jsonify(
+                {"error": "Artifact ingestion is still in progress; timed out waiting."}
+            ),
+            HTTPStatus.NOT_FOUND,
+        )
+    elif status is None:
+        return jsonify({"error": "Artifact does not exist."}), HTTPStatus.NOT_FOUND
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
@@ -298,6 +320,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
                         ),
                         HTTPStatus.FAILED_DEPENDENCY,
                     )
+                response_body = jsonify(_to_envelope(artifact))
             elif env == "prod":
                 _trigger_ingestion_lambda(artifact.id)
                 status_code = HTTPStatus.ACCEPTED

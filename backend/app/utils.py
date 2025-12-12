@@ -34,6 +34,8 @@ def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
 
     if parts[0] == "datasets" and len(parts) >= 3:
         return (True, "dataset", f"{parts[1]}/{parts[2]}")
+    elif parts[0] == "datasets" and len(parts) == 2:
+        return (True, "dataset", parts[1])
     elif parts[0] == "spaces" and len(parts) >= 3:
         return (True, "space", f"{parts[1]}/{parts[2]}")
     elif len(parts) >= 2:
@@ -223,5 +225,5 @@ def _wait_for_ingestion(
 
 
 if __name__ == "__main__":
-    print(_is_hf_url("https://huggingface.co/datasets/bookcorpus"))
-    print(_is_hf_url("https://huggingface.co/datasets/HuggingFaceM4/FairFace"))
+    print(_is_hf_url("https://huggingface.co/datasets/Farfetch dataset"))
+    # print(_is_hf_url("https://huggingface.co/datasets/HuggingFaceM4/FairFace"))

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import literal, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Artifact
@@ -31,7 +31,7 @@ def get_artifact_id_by_ref(
 ) -> Optional[int]:
     """Return the id of an artifact whose name or source_url matches ref."""
     stmt = select(Artifact.id).where(
-        or_(Artifact.name == ref, Artifact.source_url == ref)
+        or_(Artifact.name == ref, Artifact.source_url.contains(ref))
     )
     if exclude_id is not None:
         stmt = stmt.where(Artifact.id != exclude_id)
@@ -42,8 +42,10 @@ def get_artifact_id_by_ref(
 def get_artifacts_with_parent_ref(
     session: Session, ref: str, *, exclude_id: Optional[int] = None
 ) -> List[Artifact]:
-    """Return artifacts whose parent_artifact_ref matches the given ref."""
-    stmt = select(Artifact).where(Artifact.parent_artifact_ref == ref)
+    """Return artifacts whose parent_artifact_ref is contained within the given ref."""
+    stmt = select(Artifact).where(
+        literal(ref).contains(Artifact.parent_artifact_ref)  # ref LIKE %parent_ref%
+    )
     if exclude_id is not None:
         stmt = stmt.where(Artifact.id != exclude_id)
 

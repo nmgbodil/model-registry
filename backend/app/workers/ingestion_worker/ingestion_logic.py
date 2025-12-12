@@ -191,10 +191,12 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         }
 
         # Check for license for models only for now
-        if artifact.type == "model":
-            license = ingestion_metadata.get_license(artifact.name)
-            if license:
-                artifact_metadata["license"] = license
+        if artifact.type == "model" and artifact.source_url:
+            is_hf, kind, repo_id = _is_hf_url(artifact.source_url)
+            if is_hf and kind == "model" and repo_id:
+                license = ingestion_metadata.get_license(repo_id)
+                if license:
+                    artifact_metadata["license"] = license
 
         return archive_path, artifact_metadata
 
@@ -272,16 +274,19 @@ def _upload_dependencies(
             f"dep_id={dep_artifact.id} url={source}"
         )
 
-        archive_path, meta = _fetch_artifact_archive(dep_artifact)
+        archive_path = None
         try:
-            s3_uri = upload_artifact(archive_path, dep_artifact.id)
+            archive_path, meta = _fetch_artifact_archive(dep_artifact)
+            s3_key = upload_artifact(archive_path, dep_artifact.id)
             attrs: Dict[str, Any] = {
                 "status": ArtifactStatus.accepted,
-                "s3_key": s3_uri,
+                "s3_key": s3_key,
             }
             attrs.update({k: v for k, v in meta.items() if v is not None})
             update_artifact_attributes(session, dep_artifact, **attrs)
             dep_ids[field] = dep_artifact.id
+        except Exception as exc:
+            print(f"ingestion dependency failed: {exc}")
         finally:
             if archive_path and os.path.exists(archive_path):
                 try:
@@ -354,7 +359,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
             archive_path = None  # for debugging
             try:
                 archive_path, artifact_metadata = _fetch_artifact_archive(artifact)
-                s3_uri = upload_artifact(archive_path, artifact.id)
+                s3_key = upload_artifact(archive_path, artifact.id)
                 combined_metadata = {
                     **{k: v for k, v in preview_metadata.items() if v is not None},
                     **{k: v for k, v in artifact_metadata.items() if v is not None},
@@ -364,7 +369,7 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 combined_metadata.pop("code_url", None)
                 attrs: Dict[str, Any] = {
                     "status": ArtifactStatus.accepted,
-                    "s3_key": s3_uri,
+                    "s3_key": s3_key,
                 }
 
                 parent_ref = combined_metadata.get("parent_artifact_ref")
