@@ -6,7 +6,7 @@ from http import HTTPStatus
 
 from flask import Blueprint, Response, jsonify, request
 
-from app.services.auth import (
+from app.auth.auth_services import (
     AuthenticationFailedError,
     AuthServiceError,
     InvalidRegistrationError,

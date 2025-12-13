@@ -4,20 +4,22 @@ from __future__ import annotations
 
 import os
 from http import HTTPStatus
-from typing import Any
 
 from dotenv import load_dotenv
 from flask import Blueprint, Flask, Response, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from redis import Redis
 
 from app.api.artifact import bp_artifact as bp_artifact_cost
-from app.api.auth import bp_auth
 from app.api.lineage import bp_lineage
 from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
 from app.api.routes_reset import bp_reset
+from app.auth.api_request_limiter import APIRequestLimiter
+from app.auth.jwt_handlers import register_jwt_handlers
+from app.auth.routes import bp_auth
 from app.config import JWTConfig, get_settings
 
 
@@ -40,40 +42,17 @@ def create_app() -> Flask:
         max_age=600,
     )
 
+    # Initialize redis client
+    redis_client: Redis = Redis(host="localhost", port=6379, db=0)
+    app.config["API_REQUEST_LIMITER"] = APIRequestLimiter(redis_client)
+
     # JWT configuration
     jwt_cfg = JWTConfig()
     app.config.update(jwt_cfg.__dict__)
     if not app.config.get("JWT_SECRET_KEY"):
         app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret")
     jwt = JWTManager(app)  # noqa: F841
-
-    # JWT Error Handlers
-    @jwt.expired_token_loader
-    def expired_token_callback(
-        jwt_header: dict[str, Any], jwt_payload: dict[str, Any]
-    ) -> tuple[Response, HTTPStatus]:
-        # OpenAPI requires 403 for ANY auth failure
-        return jsonify({"msg": "Authentication token expired"}), HTTPStatus.FORBIDDEN
-
-    @jwt.invalid_token_loader
-    def invalid_token_callback(error_message: str) -> tuple[Response, HTTPStatus]:
-        return jsonify({"msg": "Invalid authentication token"}), HTTPStatus.FORBIDDEN
-
-    @jwt.unauthorized_loader
-    def missing_token_callback(error_message: str) -> tuple[Response, HTTPStatus]:
-        return jsonify({"msg": "Missing authentication token"}), HTTPStatus.FORBIDDEN
-
-    @jwt.revoked_token_loader
-    def revoked_token_callback(
-        jwt_header: dict[str, Any], jwt_payload: dict[str, Any]
-    ) -> tuple[Response, HTTPStatus]:
-        return jsonify({"msg": "Token has been revoked"}), HTTPStatus.FORBIDDEN
-
-    @jwt.needs_fresh_token_loader
-    def needs_fresh_token_callback(
-        jwt_header: dict[str, Any], jwt_payload: dict[str, Any]
-    ) -> tuple[Response, HTTPStatus]:
-        return jsonify({"msg": "Fresh login required"}), HTTPStatus.FORBIDDEN
+    register_jwt_handlers(jwt)
 
     bp_master = Blueprint(
         "master", __name__, url_prefix="/api"

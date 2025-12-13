@@ -7,6 +7,7 @@ from http import HTTPStatus
 from flask import Blueprint, Response, jsonify
 from flask_jwt_extended import jwt_required
 
+from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import ArtifactStatus
 from app.services.ratings import (
     ArtifactNotFoundError,
@@ -26,6 +27,7 @@ bp_ratings = Blueprint("ratings", __name__, url_prefix="/artifact")
 
 @bp_ratings.get("/model/<int:artifact_id>/rate")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def rate_model(artifact_id: int) -> tuple[Response, HTTPStatus]:
     """Return a rating for the given model artifact."""
     get_user_id_from_token()
