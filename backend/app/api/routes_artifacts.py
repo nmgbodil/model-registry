@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import re
+import signal
+from contextlib import contextmanager
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, cast
 from urllib.parse import urlparse
@@ -33,6 +35,27 @@ bp_artifact = Blueprint("artifact", __name__, url_prefix="/artifact")
 
 def _forbidden() -> ResponseReturnValue:
     return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
+
+@contextmanager
+def _regex_time_limit(seconds: float = 0.25) -> None:
+    """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
+    if hasattr(signal, "setitimer"):
+        previous = signal.getsignal(signal.SIGALRM)
+
+        def _handler(_signum: int, _frame: Any) -> None:
+            raise TimeoutError("regex evaluation timed out")
+
+        signal.signal(signal.SIGALRM, _handler)
+        signal.setitimer(signal.ITIMER_REAL, seconds)
+        try:
+            yield
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
+    else:
+        # On platforms without SIGALRM (e.g., Windows), just execute.
+        yield
 
 
 def _require_roles(
@@ -362,8 +385,14 @@ def artifact_by_regex() -> ResponseReturnValue:
         for artifact in candidates:
             name = artifact.name or ""
             readme_text = getattr(artifact, "readme_text", "") or ""
-            if pattern.search(name) or pattern.search(readme_text):
-                matched.append(_to_metadata(artifact))
+            try:
+                with _regex_time_limit():
+                    name_hit = pattern.search(name)
+                    readme_hit = pattern.search(readme_text)
+                if name_hit or readme_hit:
+                    matched.append(_to_metadata(artifact))
+            except TimeoutError:
+                return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
             if len(matched) >= 200:
                 break
 
