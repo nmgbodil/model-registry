@@ -24,6 +24,9 @@ def disable_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr("app.utils.get_user_role_from_token", lambda: "admin")
     monkeypatch.setattr("app.utils.get_user_id_from_token", lambda: "test-user")
+    monkeypatch.setattr(
+        "app.auth.api_request_limiter.get_jwt", lambda: {"tid": "test-token"}
+    )
 
 
 @pytest.fixture()

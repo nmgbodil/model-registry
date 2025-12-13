@@ -13,6 +13,7 @@ from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 from flask_jwt_extended import jwt_required
 
+from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
 from app.services.storage import generate_presigned_url
@@ -105,6 +106,7 @@ def _trigger_ingestion_lambda(artifact_id: int) -> None:
 
 @bp_artifacts.post("")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifacts_list() -> ResponseReturnValue:
     """List artifacts matching the provided queries."""
     _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
@@ -170,6 +172,7 @@ def artifacts_list() -> ResponseReturnValue:
 
 @bp_artifacts.get("/<artifact_type>/<int:artifact_id>")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Return artifact envelope by type and ID."""
     _user_id, forbidden = _require_roles({"uploader", "downloader"})
@@ -198,6 +201,7 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Update artifact contents by type and ID."""
     _user_id, forbidden = _require_roles({"uploader"})
@@ -233,6 +237,7 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 
 @bp_artifacts.delete("/<artifact_type>/<int:artifact_id>")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Delete artifact by type and ID."""
     _user_id, forbidden = _require_roles({"uploader"})
@@ -253,6 +258,7 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
 
 @bp_artifact.post("/<artifact_type>")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
     """Register a new artifact by providing a downloadable source url."""
     user_id, forbidden = _require_roles({"uploader"})
@@ -332,6 +338,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
 
 @bp_artifact.post("/byRegEx")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_by_regex() -> ResponseReturnValue:
     """Search artifacts by regex token over names."""
     _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
@@ -357,6 +364,7 @@ def artifact_by_regex() -> ResponseReturnValue:
 
 @bp_artifact.get("/byName/<name>")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def artifact_by_name(name: str) -> ResponseReturnValue:
     """List artifact metadata by exact name."""
     _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})

@@ -1,4 +1,4 @@
-"""Business logic for user registration."""
+"""Business logic for user registration and authentication."""
 
 from __future__ import annotations
 
@@ -50,7 +50,6 @@ def register_user(username: str, password: str) -> dict[str, str]:
         if get_user_by_username(session, username):
             raise UsernameTakenError("Username is already taken.")
 
-        # generate UUID for id
         user_id = str(uuid.uuid4())
         pw_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
         create_user(
@@ -78,7 +77,9 @@ def authenticate_user(username: str, password: str) -> str:
         ):
             raise AuthenticationFailedError("Invalid username or password.")
 
+        token_id = uuid.uuid4().hex
         token = create_access_token(
-            identity=user.id, additional_claims={"role": user.role.value}
+            identity=user.id,
+            additional_claims={"role": user.role.value, "tid": token_id},
         )
         return f"bearer {token}"
