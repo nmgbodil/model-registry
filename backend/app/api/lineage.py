@@ -7,6 +7,7 @@ from http import HTTPStatus
 from flask import Blueprint, Response, jsonify
 from flask_jwt_extended import jwt_required
 
+from app.auth.api_request_limiter import enforce_api_limits
 from app.schemas.lineage import Graph
 from app.services.lineage import (
     ArtifactNotFoundError,
@@ -21,6 +22,7 @@ bp_lineage = Blueprint("artifact_lineage", __name__, url_prefix="/artifact")
 
 @bp_lineage.get("/model/<int:artifact_id>/lineage")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def get_artifact_lineage(artifact_id: int) -> tuple[Response, HTTPStatus]:
     """Return the lineage graph for the given model artifact."""
     get_user_id_from_token()

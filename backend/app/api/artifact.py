@@ -6,6 +6,7 @@ from typing import Any, Dict
 from flask import Blueprint, Response, jsonify, request
 from flask_jwt_extended import jwt_required
 
+from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
 from app.services.artifact_cost import (
@@ -41,6 +42,7 @@ def _parse_dependency_flag(raw: str | None) -> bool:
 
 @bp_artifact.get("/<artifact_type>/<int:artifact_id>/cost")
 @jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def get_artifact_cost(
     artifact_type: str, artifact_id: int
 ) -> tuple[Response, HTTPStatus]:
