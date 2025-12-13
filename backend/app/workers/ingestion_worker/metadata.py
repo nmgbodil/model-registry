@@ -98,6 +98,11 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
     return dataset_url, code_url
 
 
+def get_readme_text(repo: RepoView) -> Optional[str]:
+    """Return raw README contents if present in the repo."""
+    return _read_readme(repo)
+
+
 def _convert_dataset_ref_to_url(ref: str) -> str:
     if ref.startswith(("http://", "https://")):
         dataset_url = ref
