@@ -38,7 +38,7 @@ def _forbidden() -> ResponseReturnValue:
 
 
 @contextmanager
-def _regex_time_limit(seconds: float = 0.25) -> Iterator[None]:
+def _regex_time_limit(seconds: float = 2.0) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
     setitimer = getattr(signal, "setitimer", None)
     sigalrm = getattr(signal, "SIGALRM", None)
