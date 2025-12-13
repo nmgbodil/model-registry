@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 from flask_jwt_extended import jwt_required
-from sqlalchemy import or_
 
 from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import Artifact, ArtifactStatus
@@ -369,7 +368,10 @@ def artifact_by_regex() -> ResponseReturnValue:
                 break
 
         if not matched:
-            return jsonify({"error": "no artifact found under regex"}), HTTPStatus.NOT_FOUND
+            return (
+                jsonify({"error": "no artifact found under regex"}),
+                HTTPStatus.NOT_FOUND,
+            )
 
         return jsonify(matched), HTTPStatus.OK
 

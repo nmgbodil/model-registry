@@ -96,6 +96,8 @@ def test_artifact_by_regex_returns_404_when_no_match(client: FlaskClient) -> Non
             }
         ]
     )
-    resp = client.post("/api/artifact/byRegEx", json={"regex": "nonsense-should-not-match"})
+    resp = client.post(
+        "/api/artifact/byRegEx", json={"regex": "nonsense-should-not-match"}
+    )
     assert resp.status_code == 404
     assert "no artifact" in resp.get_data(as_text=True).lower()
