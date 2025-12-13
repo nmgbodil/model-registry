@@ -9,11 +9,7 @@ from sqlalchemy.orm import Session
 from app.dals.artifacts import get_artifact_by_id, get_artifact_id_by_ref
 from app.db.models import Artifact
 from app.db.session import orm_session
-from app.schemas.lineage import (
-    ArtifactLineageEdge,
-    ArtifactLineageGraph,
-    ArtifactLineageNode,
-)
+from app.schemas.lineage import Edge, Graph, Node
 
 
 class LineageServiceError(Exception):
@@ -28,13 +24,11 @@ class ArtifactNotFoundError(LineageServiceError):
     """Raised when the artifact cannot be found."""
 
 
-def _add_node(
-    graph: ArtifactLineageGraph, artifact: Artifact, source: Optional[str]
-) -> None:
+def _add_node(graph: Graph, artifact: Artifact, source: Optional[str]) -> None:
     if any(node.artifact_id == artifact.id for node in graph.nodes):
         return
     graph.nodes.append(
-        ArtifactLineageNode(
+        Node(
             artifact_id=artifact.id,
             name=artifact.name,
             metadata=(
@@ -44,14 +38,9 @@ def _add_node(
     )
 
 
-def _add_edge(
-    graph: ArtifactLineageGraph,
-    from_id: int,
-    to_id: int,
-    relationship: str,
-) -> None:
+def _add_edge(graph: Graph, from_id: int, to_id: int, relationship: str) -> None:
     graph.edges.append(
-        ArtifactLineageEdge(
+        Edge(
             from_node_artifact_id=from_id,
             to_node_artifact_id=to_id,
             relationship=relationship,
@@ -59,9 +48,7 @@ def _add_edge(
     )
 
 
-def _traverse_parents(
-    session: Session, artifact: Artifact, graph: ArtifactLineageGraph
-) -> None:
+def _traverse_parents(session: Session, artifact: Artifact, graph: Graph) -> None:
     current = artifact
     while current.parent_artifact_id:
         parent = session.get(Artifact, current.parent_artifact_id)
@@ -79,7 +66,7 @@ def _traverse_parents(
         current = parent
 
 
-def _traverse_children(artifact: Artifact, graph: ArtifactLineageGraph) -> None:
+def _traverse_children(artifact: Artifact, graph: Graph) -> None:
     def _walk_children(parent: Artifact) -> None:
         for child in parent.children:
             _add_node(graph, child, None)
@@ -89,7 +76,7 @@ def _traverse_children(artifact: Artifact, graph: ArtifactLineageGraph) -> None:
     _walk_children(artifact)
 
 
-def get_lineage_graph(artifact_id: int) -> ArtifactLineageGraph:
+def get_lineage_graph(artifact_id: int) -> Graph:
     """Return the lineage graph for an artifact."""
     if not artifact_id or artifact_id <= 0:
         raise InvalidArtifactIdError("Invalid artifact id.")
@@ -100,7 +87,7 @@ def get_lineage_graph(artifact_id: int) -> ArtifactLineageGraph:
             if artifact is None:
                 raise ArtifactNotFoundError("Artifact not found.")
 
-            graph = ArtifactLineageGraph(nodes=[], edges=[])
+            graph = Graph(nodes=[], edges=[])
             _add_node(graph, artifact, None)
             _traverse_parents(session, artifact, graph)
             _traverse_children(artifact, graph)
