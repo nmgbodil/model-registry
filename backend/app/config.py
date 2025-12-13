@@ -4,12 +4,23 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
-from typing import Final
+from typing import Final, Optional
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+@dataclass
+class JWTConfig:
+    """JWT configuration values loaded from environment."""
+
+    JWT_SECRET_KEY: Optional[str] = os.getenv("JWT_SECRET_KEY")
+    JWT_ACCESS_TOKEN_EXPIRES: timedelta = timedelta(hours=10)
+    JWT_HEADER_NAME: str = "X-Authorization"
+    JWT_HEADER_TYPE: str = "bearer"
 
 
 @dataclass(frozen=True)

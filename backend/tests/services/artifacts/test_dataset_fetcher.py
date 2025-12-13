@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from app.services.artifacts.dataset_fetcher import HFDatasetFetcher
+from app.services.artifacts.dataset_fetcher import DATASET_ALLOW, HFDatasetFetcher
 
 
 class TestHFDatasetFetcher:
@@ -31,4 +31,4 @@ class TestHFDatasetFetcher:
         kwargs = snapshot_download_mock.call_args.kwargs
         assert kwargs["repo_type"] == "dataset"
         assert kwargs["repo_id"] == "ns/ds"
-        assert kwargs["allow_patterns"] is None
+        assert kwargs["allow_patterns"] == DATASET_ALLOW

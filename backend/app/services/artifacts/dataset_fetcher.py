@@ -4,13 +4,20 @@ from __future__ import annotations
 
 from typing import Iterable, Optional
 
-from .model_fetcher import _BaseSnapshotFetcher
+from app.services.artifacts.model_fetcher import _BaseSnapshotFetcher
 
 DATASET_ALLOW = [
     "README.md",
     "README.*",
     "dataset_info.json",  # primary structured metadata
     "data/*",  # optional: small samples/processed shards if needed
+]
+DATASET_ALLOW = [
+    "dataset_info.json",
+    "dataset_infoS.json",
+    "README.md",
+    "dataset_preview.json",  # if exists
+    "*.md",
 ]
 
 # NOTE: Move MAX_FILE_BYTES to .env
@@ -42,6 +49,6 @@ class HFDatasetFetcher(_BaseSnapshotFetcher):
             repo_id,
             "dataset",
             revision,
-            allow_patterns or None,
+            allow_patterns or DATASET_ALLOW,
             use_shared_cache,
         )

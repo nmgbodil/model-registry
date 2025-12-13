@@ -8,13 +8,19 @@ from http import HTTPStatus
 from dotenv import load_dotenv
 from flask import Blueprint, Flask, Response, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from redis import Redis
 
 from app.api.artifact import bp_artifact as bp_artifact_cost
+from app.api.lineage import bp_lineage
 from app.api.ratings import bp_ratings
 from app.api.routes_artifacts import bp_artifact, bp_artifacts
 from app.api.routes_health import bp
 from app.api.routes_reset import bp_reset
-from app.config import get_settings
+from app.auth.api_request_limiter import APIRequestLimiter
+from app.auth.jwt_handlers import register_jwt_handlers
+from app.auth.routes import bp_auth
+from app.config import JWTConfig, get_settings
 
 
 def create_app() -> Flask:
@@ -36,6 +42,18 @@ def create_app() -> Flask:
         max_age=600,
     )
 
+    # Initialize redis client
+    redis_client: Redis = Redis(host="localhost", port=6379, db=0)
+    app.config["API_REQUEST_LIMITER"] = APIRequestLimiter(redis_client)
+
+    # JWT configuration
+    jwt_cfg = JWTConfig()
+    app.config.update(jwt_cfg.__dict__)
+    if not app.config.get("JWT_SECRET_KEY"):
+        app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "dev-secret")
+    jwt = JWTManager(app)  # noqa: F841
+    register_jwt_handlers(jwt)
+
     bp_master = Blueprint(
         "master", __name__, url_prefix="/api"
     )  # Blueprint for api prefix
@@ -46,6 +64,8 @@ def create_app() -> Flask:
     bp_master.register_blueprint(bp_artifacts)
     bp_master.register_blueprint(bp_artifact)
     bp_master.register_blueprint(bp_artifact_cost)
+    bp_master.register_blueprint(bp_lineage)
+    bp_master.register_blueprint(bp_auth)
     bp_master.register_blueprint(bp_reset)
 
     @bp_master.get("/")
@@ -61,7 +81,16 @@ def create_app() -> Flask:
     def planned_tracks() -> tuple[Response, HTTPStatus]:
         """Return the list of planned tracks for implementation."""
         try:
-            return jsonify({"plannedTracks": ["Performance track"]}), HTTPStatus.OK
+            return (
+                jsonify(
+                    {
+                        "plannedTracks": [
+                            "Access control track",
+                        ]
+                    }
+                ),
+                HTTPStatus.OK,
+            )
         except Exception:
             return (
                 jsonify(
@@ -77,7 +106,6 @@ def create_app() -> Flask:
 
     # Ensure DB tables exist in dev/test
     if os.getenv("APP_ENV", "dev") in ("dev", "test"):
-        print("hello")
         try:
             from app.db.session import init_local_db
 

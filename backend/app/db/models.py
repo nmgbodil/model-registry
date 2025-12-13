@@ -19,10 +19,10 @@ class Base(DeclarativeBase):
 class UserRole(PyEnum):
     """All roles a user can hold within the registry."""
 
-    ADMIN = "admin"
-    UPLOADER = "uploader"
-    DOWNLOADER = "downloader"
-    SEARCHER = "searcher"
+    admin = "admin"
+    uploader = "uploader"
+    downloader = "downloader"
+    searcher = "searcher"
 
 
 class User(Base):
@@ -35,7 +35,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, name="user_role", native_enum=True),
-        default=UserRole.SEARCHER,
+        default=UserRole.searcher,
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(

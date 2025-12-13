@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 from pathlib import Path
 from typing import Optional, Tuple
@@ -27,7 +26,7 @@ def get_parent_artifact(repo: RepoView) -> Optional[str]:
 
     # Aligns with common Hugging Face configs where downstream models
     # declare their base via this field.
-    parent_ref = data.get("base_model_name_or_path")
+    parent_ref = data.get("base_model_name_or_path") or data.get("_name_or_path")
     if isinstance(parent_ref, str) and parent_ref.strip():
         return parent_ref.strip()
 
@@ -72,12 +71,12 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
         return None, None
 
     prompt = build_dataset_code_extraction_prompt(readme)
-    model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
-    client = LLMClient(model=model)
+    client = LLMClient(model="gpt-5-nano")
 
     try:
         result = client.invoke_json(prompt)
-    except Exception:
+    except Exception as e:
+        print(f"Exception occurred: {e}")
         return None, None
 
     dataset_url = None
@@ -118,14 +117,22 @@ def get_license(repo_id: str) -> Optional[str]:
     """Return the license for a HF model by inspecting cardData or license tags."""
     hf_client = HFClient()
     try:
+        print(f"get_license: fetching metadata for repo_id={repo_id}")
         metadata = hf_client.get_model_metadata(repo_id)
-    except Exception:
+    except Exception as exc:
+        print(
+            f"get_license: failed to fetch metadata for repo_id={repo_id} error={exc}"
+        )
         return None
 
     card = metadata.get("cardData")
     if isinstance(card, dict):
         license = card.get("license")
         if isinstance(license, str) and license.strip():
+            print(
+                "get_license: license found in cardData "
+                f"repo_id={repo_id} license={license.strip()}"
+            )
             return license.strip()
 
     tags = metadata.get("tags")
@@ -137,6 +144,10 @@ def get_license(repo_id: str) -> Optional[str]:
             if match:
                 license = match.group(1).strip()
                 if license:
+                    print(
+                        "get_license: license found in tags "
+                        f"repo_id={repo_id} license={license}"
+                    )
                     return license
 
     return None

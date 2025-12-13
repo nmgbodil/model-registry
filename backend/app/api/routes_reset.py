@@ -3,30 +3,27 @@
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import Optional
 
 from flask import Blueprint, jsonify
 from flask.typing import ResponseReturnValue
+from flask_jwt_extended import jwt_required
 
-from app.db.models import Artifact, Rating
+from app.auth.api_request_limiter import enforce_api_limits
+from app.db.models import Artifact, Rating, User, UserRole
 from app.db.session import orm_session
 from app.services.storage import delete_all_objects
+from app.utils import role_allowed
 
 bp_reset = Blueprint("reset", __name__)
 
 
-def _require_auth() -> Optional[ResponseReturnValue]:
-    """Placeholder auth hook; allow all for now."""
-    return None
-
-
 @bp_reset.delete("/reset")
+@jwt_required()  # type: ignore[misc]
+@enforce_api_limits
 def reset_registry() -> ResponseReturnValue:
     """Reset the registry: purge S3 artifacts, artifacts, and ratings."""
-    auth_err = _require_auth()
-    if auth_err is not None:
-        return auth_err
-
+    if not role_allowed({"admin"}):
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
     try:
         delete_all_objects()
     except Exception:
@@ -36,5 +33,6 @@ def reset_registry() -> ResponseReturnValue:
     with orm_session() as session:
         session.query(Rating).delete()
         session.query(Artifact).delete()
+        session.query(User).filter(User.role != UserRole.admin).delete()
         session.commit()
     return jsonify({"message": "reset"}), HTTPStatus.OK

@@ -8,6 +8,10 @@ from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import Iterable, Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
 
@@ -16,14 +20,14 @@ from huggingface_hub import snapshot_download  # noqa: E402
 from .repo_view import RepoView  # noqa: E402
 
 MODEL_ALLOW = [
-    "README.md",
-    "README.*",
     "config.json",
+    "tokenizer.json",
     "model_index.json",
-    "tokenizer.*",
-    "vocab.*",
-    "pytorch_model.bin",
-    "tf_model.h5",
+    "tokenizer.model",
+    "vocab.json",
+    "vocab.txt",
+    "*.md",
+    "LICENSE*",
 ]
 MODEL_PREVIEW_ALLOW = [
     "README.md",
@@ -75,6 +79,12 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
         self._tmp_dir = tempfile.TemporaryDirectory(prefix="mac_")
         target = Path(self._tmp_dir.name)
 
+        token = os.getenv("HUGGINGFACE_HUB_TOKEN")
+
+        print(
+            f"snapshot_fetcher: downloading repo={self.repo_id} "
+            f"type={self.repo_type} revision={self.revision}"
+        )
         local_path = Path(
             snapshot_download(
                 repo_id=self.repo_id,
@@ -83,12 +93,15 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
                 allow_patterns=self.allow_patterns,
                 tqdm_class=None,
                 local_dir=str(target),
+                token=token,
+                max_workers=1,
             )
         )
         self._local_path = local_path
 
         self._remove_large_files(local_path)
 
+        print(f"snapshot_fetcher: ready at {local_path}")
         return RepoView(local_path)
 
     def __exit__(
@@ -126,6 +139,7 @@ class _BaseSnapshotFetcher(AbstractContextManager[RepoView]):
         for p in local_path.rglob("*"):
             if p.is_file() and p.stat().st_size > MAX_FILE_BYTES:
                 p.unlink(missing_ok=True)
+                print(f"snapshot_fetcher: removed large file {p}")
 
 
 class HFModelFetcher(_BaseSnapshotFetcher):
@@ -154,6 +168,6 @@ class HFModelFetcher(_BaseSnapshotFetcher):
             repo_id,
             "model",
             revision,
-            allow_patterns or None,
+            allow_patterns or MODEL_ALLOW,
             use_shared_cache,
         )

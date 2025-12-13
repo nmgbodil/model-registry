@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import os
+import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
-from app.db.models import Artifact, Rating
+from flask_jwt_extended import get_jwt, get_jwt_identity
+
+from app.db.models import Artifact, ArtifactStatus, Rating
+from app.db.session import orm_session
 from app.schemas.model_rating import ModelRating, ModelSizeScore
 
 
@@ -29,6 +34,8 @@ def _is_hf_url(url: str) -> Tuple[bool, str, Optional[str]]:
 
     if parts[0] == "datasets" and len(parts) >= 3:
         return (True, "dataset", f"{parts[1]}/{parts[2]}")
+    elif parts[0] == "datasets" and len(parts) == 2:
+        return (True, "dataset", parts[1])
     elif parts[0] == "spaces" and len(parts) >= 3:
         return (True, "space", f"{parts[1]}/{parts[2]}")
     elif len(parts) >= 2:
@@ -157,6 +164,66 @@ def canonical_dataset_url(dataset_ref: Optional[str]) -> Optional[str]:
     return None
 
 
+def get_user_id_from_token() -> Optional[str]:
+    """Extract the user id from the current JWT, if present.
+
+    TODO: Implement cache lookup to track API request counts per user.
+    """
+    try:
+        identity = get_jwt_identity()
+    except Exception:
+        return None
+    if isinstance(identity, str) and identity:
+        return identity
+    return None
+
+
+def get_user_role_from_token() -> Optional[str]:
+    """Return the role claim from the current JWT, if present."""
+    try:
+        claims = get_jwt()
+    except Exception:
+        return None
+    if isinstance(claims, dict):
+        role = claims.get("role")
+        if isinstance(role, str) and role:
+            return role
+    return None
+
+
+def role_allowed(allowed_roles: set[str]) -> bool:
+    """Check whether the current JWT role is in the allowed set (admins always pass)."""
+    role = get_user_role_from_token()
+    if role is None:
+        return False
+    if role == "admin":
+        return True
+    return role in allowed_roles
+
+
+def _wait_for_ingestion(
+    artifact_id: int,
+    timeout_seconds: float = float(os.getenv("RATING_WAIT_TIMEOUT_SECONDS", "175")),
+    poll_seconds: float = float(os.getenv("RATING_WAIT_POLL_SECONDS", "1")),
+) -> Optional[ArtifactStatus]:
+    """Poll for artifact ingestion to finish or until timeout."""
+    start = time.monotonic()
+    while True:
+        with orm_session() as session:
+            artifact = session.get(Artifact, artifact_id)
+            if artifact is None:
+                return None
+            status = artifact.status
+
+        if status != ArtifactStatus.pending:
+            return status
+
+        if time.monotonic() - start >= timeout_seconds:
+            return ArtifactStatus.pending
+
+        time.sleep(poll_seconds)
+
+
 if __name__ == "__main__":
-    print(_is_hf_url("https://huggingface.co/datasets/bookcorpus"))
-    print(_is_hf_url("https://huggingface.co/datasets/HuggingFaceM4/FairFace"))
+    print(_is_hf_url("https://huggingface.co/datasets/Farfetch dataset"))
+    # print(_is_hf_url("https://huggingface.co/datasets/HuggingFaceM4/FairFace"))
