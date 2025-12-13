@@ -124,15 +124,27 @@ def check_model_license(artifact_id: int) -> Tuple[Response, HTTPStatus]:
         elif status is None:
             raise ArtifactNotFoundError("Artifact does not exist.")
 
+        print(f"license_check: start artifact_id={artifact_id} github_url={github_url}")
+
         compatible = check_model_license_compatibility(artifact_id, github_url)
+        print(
+            f"license_check: completed artifact_id={artifact_id} "
+            f"compatible={compatible}"
+        )
         return jsonify(compatible), HTTPStatus.OK
     except InvalidLicenseRequestError as exc:
+        print(f"license_check: bad request artifact_id={artifact_id} error={exc}")
         return jsonify({"error": str(exc)}), HTTPStatus.BAD_REQUEST
     except ArtifactNotFoundError as exc:
+        print(f"license_check: not found artifact_id={artifact_id} error={exc}")
         return jsonify({"error": str(exc)}), HTTPStatus.NOT_FOUND
     except ExternalLicenseError as exc:
         msg = str(exc) or "External license information could not be retrieved."
+        print(f"license_check: upstream error artifact_id={artifact_id} error={msg}")
         return jsonify({"error": msg}), HTTPStatus.BAD_GATEWAY
     except Exception as exc:
         msg = str(exc) or "An unexpected error occurred during license evaluation."
+        print(
+            f"license_check: unexpected error artifact_id={artifact_id} " f"error={msg}"
+        )
         return jsonify({"error": msg}), HTTPStatus.INTERNAL_SERVER_ERROR
