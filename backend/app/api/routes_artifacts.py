@@ -7,7 +7,7 @@ import re
 import signal
 from contextlib import contextmanager
 from http import HTTPStatus
-from typing import Any, Dict, List, Optional, Set, cast
+from typing import Any, Dict, Iterator, List, Optional, Set, cast
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -38,21 +38,24 @@ def _forbidden() -> ResponseReturnValue:
 
 
 @contextmanager
-def _regex_time_limit(seconds: float = 0.25) -> None:
+def _regex_time_limit(seconds: float = 0.25) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
-    if hasattr(signal, "setitimer"):
-        previous = signal.getsignal(signal.SIGALRM)
+    setitimer = getattr(signal, "setitimer", None)
+    sigalrm = getattr(signal, "SIGALRM", None)
+    itimer_real = getattr(signal, "ITIMER_REAL", None)
+    if setitimer and sigalrm and itimer_real:
+        previous = signal.getsignal(sigalrm)
 
         def _handler(_signum: int, _frame: Any) -> None:
             raise TimeoutError("regex evaluation timed out")
 
-        signal.signal(signal.SIGALRM, _handler)
-        signal.setitimer(signal.ITIMER_REAL, seconds)
+        signal.signal(sigalrm, _handler)
+        setitimer(itimer_real, seconds)
         try:
             yield
         finally:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-            signal.signal(signal.SIGALRM, previous)
+            setitimer(itimer_real, 0)
+            signal.signal(sigalrm, previous)
     else:
         # On platforms without SIGALRM (e.g., Windows), just execute.
         yield
