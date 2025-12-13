@@ -8,7 +8,7 @@ from typing import Any, Optional
 import pytest
 
 from app.db.models import Artifact
-from app.services import artifact_cost as cost_service
+from app.services import artifact as cost_service
 
 
 class FakeSession:
