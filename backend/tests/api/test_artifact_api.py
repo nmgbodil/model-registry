@@ -13,9 +13,10 @@ from app import create_app
 from app.api import artifact as artifact_api
 from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
-from app.services.artifact_cost import (
+from app.services.artifact import (
     ArtifactCostError,
     ArtifactNotFoundError,
+    ExternalLicenseError,
     InvalidArtifactIdError,
     InvalidArtifactTypeError,
 )
@@ -37,7 +38,7 @@ def auth_headers(flask_app: Flask) -> dict[str, str]:
     """Provide authorization headers with a test JWT."""
     with flask_app.app_context():
         token = create_access_token(identity="test-user")
-    return {"Authorization": f"Bearer {token}"}
+    return {"Authorization": f"Bearer {token}"}  # noqa: E501
 
 
 @pytest.fixture(autouse=True)
@@ -50,12 +51,15 @@ def disable_jwt(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("app.utils.get_user_role_from_token", lambda: "admin")
     monkeypatch.setattr("app.utils.get_user_id_from_token", lambda: "test-user")
     monkeypatch.setattr(
-        "app.auth.api_request_limiter.get_jwt", lambda: {"tid": "test-token"}
+        "app.auth.api_request_limiter.get_jwt",
+        lambda: {"tid": "test-token"},
     )
 
 
 def test_get_artifact_cost_success(
-    flask_app: Flask, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    flask_app: Flask,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Returns cost payload when service succeeds."""
     monkeypatch.setattr(
@@ -83,7 +87,9 @@ def test_get_artifact_cost_success(
 
 
 def test_get_artifact_cost_with_dependency_flag(
-    flask_app: Flask, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    flask_app: Flask,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Includes standalone_cost when dependency flag true."""
     monkeypatch.setattr(
@@ -166,7 +172,9 @@ def test_get_artifact_cost_bad_request(
 
 
 def test_get_artifact_cost_not_found(
-    flask_app: Flask, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    flask_app: Flask,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Returns 404 when artifact missing."""
     monkeypatch.setattr(
@@ -180,7 +188,9 @@ def test_get_artifact_cost_not_found(
 
 
 def test_get_artifact_cost_unexpected_error(
-    flask_app: Flask, auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    flask_app: Flask,
+    auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Returns 500 when service raises unexpected cost error."""
     monkeypatch.setattr(
@@ -204,3 +214,129 @@ def test_get_artifact_cost_unexpected_error(
     client = flask_app.test_client()
     resp = client.get("/api/artifact/model/10/cost", headers=auth_headers)
     assert resp.status_code == 500
+
+
+def _setup_fake_model_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+    license_name: str,
+) -> None:
+    """Patch license compatibility checks for a fake artifact."""
+    monkeypatch.setattr(
+        artifact_api,
+        "check_model_license_compatibility",
+        mock.MagicMock(return_value=True),
+    )
+    monkeypatch.setattr(
+        artifact_api,
+        "_wait_for_ingestion",
+        lambda artifact_id: ArtifactStatus.accepted,
+    )
+
+
+def test_license_check_success_returns_boolean_true(
+    flask_app: Flask,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """License check returns True for compatible licenses."""
+    _setup_fake_model_artifact(monkeypatch, license_name="mit")
+
+    client = flask_app.test_client()
+    resp = client.post(
+        "/api/artifact/model/1/license-check",
+        json={"github_url": "https://github.com/google-research/bert"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.is_json
+    assert resp.get_json() is True
+
+
+def test_license_check_missing_github_url_returns_400(
+    flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """License check returns 400 when github_url is invalid."""
+    client = flask_app.test_client()
+    # ensure ingestion check passes to reach validation
+    monkeypatch.setattr(
+        cast(Any, artifact_api),
+        "_wait_for_ingestion",
+        lambda artifact_id, _timeout_seconds=0.0, _poll_seconds=0.0: (
+            ArtifactStatus.accepted
+        ),
+    )
+
+    resp = client.post(
+        "/api/artifact/model/1/license-check",
+        json={},
+    )
+    assert resp.status_code == 400
+
+    resp = client.post(
+        "/api/artifact/model/1/license-check",
+        json={"github_url": 123},
+    )
+    assert resp.status_code == 400
+
+
+def test_license_check_artifact_not_found_returns_404(
+    flask_app: Flask,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """License check returns 404 when artifact does not exist."""
+    monkeypatch.setattr(
+        cast(Any, artifact_api),
+        "_wait_for_ingestion",
+        lambda artifact_id, _timeout_seconds=0.0, _poll_seconds=0.0: (
+            ArtifactStatus.accepted
+        ),
+    )
+    monkeypatch.setattr(
+        artifact_api,
+        "check_model_license_compatibility",
+        mock.MagicMock(side_effect=ArtifactNotFoundError("Artifact does not exist.")),
+    )
+
+    client = flask_app.test_client()
+    resp = client.post(
+        "/api/artifact/model/999/license-check",
+        json={"github_url": "https://github.com/google-research/bert"},
+    )
+
+    assert resp.status_code == 404
+    assert resp.is_json
+    assert "error" in resp.get_json()
+
+
+def test_license_check_external_license_error_returns_502(
+    flask_app: Flask,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """License check returns 502 when GitHub license fetch fails."""
+    monkeypatch.setattr(
+        cast(Any, artifact_api),
+        "_wait_for_ingestion",
+        lambda artifact_id, _timeout_seconds=0.0, _poll_seconds=0.0: (
+            ArtifactStatus.accepted
+        ),
+    )
+    monkeypatch.setattr(
+        artifact_api,
+        "check_model_license_compatibility",
+        mock.MagicMock(
+            side_effect=ExternalLicenseError(
+                "External license information could not be retrieved."
+            )
+        ),
+    )
+
+    client = flask_app.test_client()
+    resp = client.post(
+        "/api/artifact/model/1/license-check",
+        json={"github_url": "https://github.com/google-research/bert"},
+    )
+
+    assert resp.status_code == 502
+    assert resp.is_json
+    body = resp.get_json()
+    assert "error" in body
+    assert "External license information could not be retrieved" in body["error"]
