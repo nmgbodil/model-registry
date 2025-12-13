@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 from flask_jwt_extended import jwt_required
-from sqlalchemy import or_
 
 from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import Artifact, ArtifactStatus
@@ -355,16 +354,8 @@ def artifact_by_regex() -> ResponseReturnValue:
     except re.error:
         return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
 
-    token = regex_val.replace(".*", "").strip("%")
     with orm_session() as session:
         stmt = session.query(Artifact).order_by(Artifact.id.desc())
-        if token:
-            stmt = stmt.filter(
-                or_(
-                    Artifact.name.ilike(f"%{token}%"),
-                    Artifact.readme_text.ilike(f"%{token}%"),
-                )
-            )
         candidates = stmt.limit(500).all()
 
         matched: List[Dict[str, Any]] = []
@@ -375,6 +366,12 @@ def artifact_by_regex() -> ResponseReturnValue:
                 matched.append(_to_metadata(artifact))
             if len(matched) >= 200:
                 break
+
+        if not matched:
+            return (
+                jsonify({"error": "no artifact found under regex"}),
+                HTTPStatus.NOT_FOUND,
+            )
 
         return jsonify(matched), HTTPStatus.OK
 
