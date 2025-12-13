@@ -182,12 +182,14 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         )
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
+        readme_text = ingestion_metadata.get_readme_text(repo)
         artifact_metadata: Dict[str, Any] = {
             "parent_artifact_ref": ingestion_metadata.get_parent_artifact(repo),
             "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
                 archive_path_path
             ),
             "size_bytes": ingestion_metadata.compute_size_bytes(archive_path_path),
+            "readme_text": readme_text,
         }
 
         # Check for license for models only for now

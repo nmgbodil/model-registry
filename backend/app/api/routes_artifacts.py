@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from flask import Blueprint, Response, jsonify, make_response, request
 from flask.typing import ResponseReturnValue
 from flask_jwt_extended import jwt_required
+from sqlalchemy import or_
 
 from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import Artifact, ArtifactStatus
@@ -340,7 +341,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
 @jwt_required()  # type: ignore[misc]
 @enforce_api_limits
 def artifact_by_regex() -> ResponseReturnValue:
-    """Search artifacts by regex token over names."""
+    """Search artifacts by regex token over names and README text."""
     _user_id, forbidden = _require_roles({"uploader", "downloader", "searcher"})
     if forbidden:
         return forbidden
@@ -349,17 +350,33 @@ def artifact_by_regex() -> ResponseReturnValue:
     if not isinstance(regex_val, str) or not regex_val.strip():
         return jsonify({"error": "missing regex"}), HTTPStatus.BAD_REQUEST
 
+    try:
+        pattern = re.compile(regex_val, re.IGNORECASE)
+    except re.error:
+        return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
+
     token = regex_val.replace(".*", "").strip("%")
     with orm_session() as session:
-        rows = (
-            session.query(Artifact)
-            .filter(Artifact.name.ilike(f"%{token}%"))
-            .order_by(Artifact.id.desc())
-            .limit(200)
-            .all()
-        )
-        items: List[Dict[str, Any]] = [_to_metadata(artifact) for artifact in rows]
-        return jsonify(items), HTTPStatus.OK
+        stmt = session.query(Artifact).order_by(Artifact.id.desc())
+        if token:
+            stmt = stmt.filter(
+                or_(
+                    Artifact.name.ilike(f"%{token}%"),
+                    Artifact.readme_text.ilike(f"%{token}%"),
+                )
+            )
+        candidates = stmt.limit(500).all()
+
+        matched: List[Dict[str, Any]] = []
+        for artifact in candidates:
+            name = artifact.name or ""
+            readme_text = getattr(artifact, "readme_text", "") or ""
+            if pattern.search(name) or pattern.search(readme_text):
+                matched.append(_to_metadata(artifact))
+            if len(matched) >= 200:
+                break
+
+        return jsonify(matched), HTTPStatus.OK
 
 
 @bp_artifact.get("/byName/<name>")

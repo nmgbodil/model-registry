@@ -54,12 +54,14 @@ def compute_size_bytes(zip_path: Path) -> Optional[int]:
 
 
 def _read_readme(repo: RepoView) -> Optional[str]:
+    if not hasattr(repo, "read_text"):
+        return None
     for candidate in ("README.md", "README.MD", "README", "README.txt"):
         try:
             return repo.read_text(candidate)
         except FileNotFoundError:
             continue
-        except OSError:
+        except (OSError, AttributeError):
             return None
     return None
 
@@ -95,6 +97,11 @@ def get_dataset_and_code(repo: RepoView) -> Tuple[Optional[str], Optional[str]]:
                 code_url = first.strip()
 
     return dataset_url, code_url
+
+
+def get_readme_text(repo: RepoView) -> Optional[str]:
+    """Return raw README contents if present in the repo."""
+    return _read_readme(repo)
 
 
 def _convert_dataset_ref_to_url(ref: str) -> str:

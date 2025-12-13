@@ -6,16 +6,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from typing import List, Optional
 
-from sqlalchemy import (
-    DateTime,
-    Enum,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    func,
-)
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -80,6 +71,7 @@ class Artifact(Base):
     s3_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     checksum_sha256: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     source_url: Mapped[Optional[str]] = mapped_column(Text, nullable=False)
+    readme_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # NEW: current status of the artifact in your registry
     status: Mapped[ArtifactStatus] = mapped_column(
