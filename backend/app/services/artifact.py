@@ -324,9 +324,7 @@ def check_model_license_compatibility(artifact_id: int, github_url: str) -> bool
 
     model_spdx = normalize_license_string(model_license_raw)
     if not model_spdx:
-        raise InvalidLicenseRequestError(
-            "Artifact has no recognized license; cannot evaluate compatibility."
-        )
+        return False
 
     try:
         repo_license = fetch_github_license(github_url)
