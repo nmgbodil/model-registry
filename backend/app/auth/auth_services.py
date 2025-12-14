@@ -57,7 +57,7 @@ def register_user(username: str, password: str) -> dict[str, str]:
             user_id=user_id,
             username=username,
             password_hash=pw_hash.decode("utf-8"),
-            role=UserRole.admin,
+            role=UserRole.searcher,
         )
         session.commit()
         return {"id": user_id, "username": username}
