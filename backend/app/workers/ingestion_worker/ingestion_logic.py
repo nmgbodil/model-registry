@@ -36,6 +36,7 @@ from app.workers.ingestion_worker.src.main import calculate_scores
 from app.workers.ingestion_worker.src.url import Url, UrlSet
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 DEFAULT_RATING_VALUES: Dict[str, Any] = {
@@ -180,9 +181,15 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
             f"ingestion: building archive for artifact_id={artifact.id} "
             f"path={repo.root}"
         )
+        print("BEFORE get_readme_text")
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
         readme_text = ingestion_metadata.get_readme_text(repo)
+        print(
+            f"ingestion: readme length={len(readme_text or '')} "
+            f"artifact_id={artifact.id}"
+        )
+        print("AFTER get_readme_text")
         artifact_metadata: Dict[str, Any] = {
             "parent_artifact_ref": ingestion_metadata.get_parent_artifact(repo),
             "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
