@@ -238,10 +238,6 @@ class ArtifactAuditLog(Base):
         index=True,
     )
 
-    previous_checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-
-    new_checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-
     request_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
 
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

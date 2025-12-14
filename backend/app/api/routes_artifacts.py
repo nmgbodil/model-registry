@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 import signal
 from contextlib import contextmanager
 from http import HTTPStatus
-from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, cast
 from urllib.parse import urlparse
 
@@ -30,7 +28,6 @@ from app.utils import (
     role_allowed,
 )
 from app.workers.ingestion_worker.ingestion_logic import (
-    _fetch_artifact_archive,
     ingest_artifact,
 )
 
@@ -232,18 +229,17 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
         envelope = _to_envelope(artifact)
         download_url = envelope.get("data", {}).get("download_url")
         if download_url:
-            request_ctxt = get_request_context()
-            log_artifact_event(
-                session=session,
-                artifact_id=artifact.id,
-                artifact_type=artifact.type,
-                action="DOWNLOAD",
-                user_id=user_id,
-                previous_checksum=None,
-                new_checksum=None,
-                request_ip=request_ctxt.get("request_ip"),
-                user_agent=request_ctxt.get("user-agent"),
-            )
+            with session.begin():
+                request_ctxt = get_request_context()
+                log_artifact_event(
+                    session=session,
+                    artifact_id=artifact.id,
+                    artifact_type=artifact.type,
+                    action="DOWNLOAD",
+                    user_id=user_id,
+                    request_ip=request_ctxt.get("request_ip"),
+                    user_agent=request_ctxt.get("user_agent"),
+                )
         return jsonify(envelope), HTTPStatus.OK
 
 
@@ -258,6 +254,7 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
     metadata = cast(Dict[str, Any], body.get("metadata") or {})
     data = cast(Dict[str, Any], body.get("data") or {})
+    refresh_flag = bool(data.get("refresh"))
 
     ids_mismatch = str(metadata.get("id")) != str(artifact_id)
     type_mismatch = metadata.get("type") != artifact_type
@@ -265,75 +262,70 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
         return jsonify({"error": "name/id/type mismatch"}), HTTPStatus.BAD_REQUEST
 
     with orm_session() as session:
-        artifact = session.get(Artifact, artifact_id)
-        if artifact is None:
-            return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
+        with session.begin():
+            artifact = session.get(Artifact, artifact_id)
+            if artifact is None:
+                return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
-        is_admin = role_allowed({"admin"})
-        if artifact.created_by is not None:
-            if artifact.created_by != user_id and not is_admin:
-                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
-        else:
-            if not is_admin:
-                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+            is_admin = role_allowed({"admin"})
+            if artifact.created_by is not None:
+                if artifact.created_by != user_id and not is_admin:
+                    return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+            else:
+                if not is_admin:
+                    return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
-        name = metadata.get("name")
-        name_changed = False
-        if isinstance(name, str) and name.strip():
-            normalized = re.sub(r"\s+", "_", name.strip())
-            if artifact.name != normalized:
-                name_changed = True
-                artifact.name = normalized
+            name = metadata.get("name")
+            name_changed = False
+            if isinstance(name, str) and name.strip():
+                normalized = re.sub(r"\s+", "_", name.strip())
+                if artifact.name != normalized:
+                    name_changed = True
+                    artifact.name = normalized
 
-        url = data.get("url")
-        content_changed = False
-        new_checksum: Optional[str] = None
-        old_checksum = artifact.checksum_sha256
-        if isinstance(url, str) and url.strip():
-            artifact.source_url = url.strip()
-            try:
-                archive_path, meta = _fetch_artifact_archive(artifact)
-                new_checksum = meta.get("checksum_sha256")
-                if new_checksum and new_checksum != old_checksum:
-                    content_changed = True
-                    _trigger_ingestion_lambda(artifact.id)
-            finally:
-                if "archive_path" in locals():
-                    try:
-                        os.remove(archive_path)
-                        shutil.rmtree(Path(archive_path).parent, ignore_errors=True)
-                    except Exception:
-                        pass
+            url = data.get("url")
+            content_changed = False
+            url_changed = False
+            if isinstance(url, str) and url.strip():
+                normalized_url = url.strip()
+                url_changed = normalized_url != (artifact.source_url or "")
+                artifact.source_url = normalized_url
+                artifact.status = ArtifactStatus.pending
 
-        session.flush()
-        session.commit()
+            if refresh_flag or url_changed:
+                content_changed = True
 
-        if name_changed:
-            request_ctxt = get_request_context()
-            log_artifact_event(
-                session=session,
-                artifact_id=artifact.id,
-                artifact_type=artifact.type,
-                action="UPDATE_NAME",
-                user_id=user_id,
-                previous_checksum=None,
-                new_checksum=None,
-                request_ip=request_ctxt.get("request_ip"),
-                user_agent=request_ctxt.get("user-agent"),
-            )
+            if name_changed:
+                request_ctxt = get_request_context()
+                log_artifact_event(
+                    session=session,
+                    artifact_id=artifact.id,
+                    artifact_type=artifact.type,
+                    action="UPDATE_NAME",
+                    user_id=user_id,
+                    request_ip=request_ctxt.get("request_ip"),
+                    user_agent=request_ctxt.get("user_agent"),
+                )
+            if content_changed:
+                request_ctxt = get_request_context()
+                log_artifact_event(
+                    session=session,
+                    artifact_id=artifact.id,
+                    artifact_type=artifact.type,
+                    action="UPDATE_CONTENT",
+                    user_id=user_id,
+                    request_ip=request_ctxt.get("request_ip"),
+                    user_agent=request_ctxt.get("user_agent"),
+                )
+
         if content_changed:
-            request_ctxt = get_request_context()
-            log_artifact_event(
-                session=session,
-                artifact_id=artifact.id,
-                artifact_type=artifact.type,
-                action="UPDATE_CONTENT",
-                user_id=user_id,
-                previous_checksum=old_checksum,
-                new_checksum=new_checksum,
-                request_ip=request_ctxt.get("request_ip"),
-                user_agent=request_ctxt.get("user-agent"),
-            )
+            env = os.getenv("APP_ENV", "dev").lower()
+            if env in {"dev", "test"}:
+                ingest_artifact(artifact.id)
+            elif env == "prod":
+                _trigger_ingestion_lambda(artifact.id)
+                return jsonify({"message": "accepted"}), HTTPStatus.ACCEPTED
+
         return jsonify({"message": "updated"}), HTTPStatus.OK
 
 
@@ -346,34 +338,34 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
     if forbidden:
         return forbidden
     with orm_session() as session:
-        artifact = session.get(Artifact, artifact_id)
-        if artifact is None:
-            return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
+        with session.begin():
+            artifact = session.get(Artifact, artifact_id)
+            if artifact is None:
+                return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
-        if artifact.created_by:
-            if artifact.created_by != user_id and not role_allowed({"admin"}):
-                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
-        else:
-            if not role_allowed({"admin"}):
-                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+            if artifact.created_by:
+                if artifact.created_by != user_id and not role_allowed({"admin"}):
+                    return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+            else:
+                if not role_allowed({"admin"}):
+                    return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
-        if artifact.type != artifact_type:
-            return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
+            if artifact.type != artifact_type:
+                return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
 
-        request_ctxt = get_request_context()
-        session.delete(artifact)
-        log_artifact_event(
-            session=session,
-            artifact_id=artifact.id,
-            artifact_type=artifact.type,
-            action="DELETE",
-            user_id=user_id,
-            previous_checksum=artifact.checksum_sha256,
-            new_checksum=None,
-            request_ip=request_ctxt.get("request_ip"),
-            user_agent=request_ctxt.get("user-agent"),
-        )
-        session.commit()
+            request_ctxt = get_request_context()
+
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="DELETE",
+                user_id=user_id,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user_agent"),
+            )
+            session.delete(artifact)
+
         return jsonify({"message": "deleted"}), HTTPStatus.OK
 
 
@@ -402,27 +394,39 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         artifact_name = artifact_name_from_url(url)
 
     with orm_session() as session:
-        duplicate = _compute_duplicate(session, artifact_type, artifact_name, url)
-        if duplicate:
-            print(
-                f"artifact_create: duplicate detected type={artifact_type} "
-                f"url={url} id={duplicate.id}"
-            )
-            return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
+        with session.begin():
+            duplicate = _compute_duplicate(session, artifact_type, artifact_name, url)
+            if duplicate:
+                print(
+                    f"artifact_create: duplicate detected type={artifact_type} "
+                    f"url={url} id={duplicate.id}"
+                )
+                return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
 
-        artifact = Artifact(
-            name=artifact_name,
-            type=artifact_type,
-            source_url=url,
-            created_by=user_id,
-        )
-        session.add(artifact)
-        session.flush()
-        session.commit()
-        print(
-            f"artifact_create: created artifact id={artifact.id} "
-            f"type={artifact_type} name={artifact_name} url={url}"
-        )
+            artifact = Artifact(
+                name=artifact_name,
+                type=artifact_type,
+                source_url=url,
+                created_by=user_id,
+            )
+            session.add(artifact)
+            session.flush()
+
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="CREATE",
+                user_id=user_id,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user_agent"),
+            )
+
+            print(
+                f"artifact_create: created artifact id={artifact.id} "
+                f"type={artifact_type} name={artifact_name} url={url}"
+            )
 
         env = os.getenv("APP_ENV", "dev").lower()
         status_code = HTTPStatus.CREATED
@@ -453,18 +457,6 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
                 status_code = HTTPStatus.ACCEPTED
                 print(f"artifact_create: ingestion lambda triggered id={artifact.id}")
 
-            request_ctxt = get_request_context()
-            log_artifact_event(
-                session=session,
-                artifact_id=artifact.id,
-                artifact_type=artifact.type,
-                action="CREATE",
-                user_id=user_id,
-                previous_checksum=None,
-                new_checksum=None,
-                request_ip=request_ctxt.get("request_ip"),
-                user_agent=request_ctxt.get("user-agent"),
-            )
         except Exception:
             raise
         return response_body, status_code
