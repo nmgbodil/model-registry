@@ -319,8 +319,12 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
                 )
 
         if content_changed:
-            _trigger_ingestion_lambda(artifact.id)
-            return jsonify({"message": "accepted"}), HTTPStatus.ACCEPTED
+            env = os.getenv("APP_ENV", "dev").lower()
+            if env in {"dev", "test"}:
+                ingest_artifact(artifact.id)
+            elif env == "prod":
+                _trigger_ingestion_lambda(artifact.id)
+                return jsonify({"message": "accepted"}), HTTPStatus.ACCEPTED
 
         return jsonify({"message": "updated"}), HTTPStatus.OK
 
@@ -390,15 +394,15 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
         artifact_name = artifact_name_from_url(url)
 
     with orm_session() as session:
-        duplicate = _compute_duplicate(session, artifact_type, artifact_name, url)
-        if duplicate:
-            print(
-                f"artifact_create: duplicate detected type={artifact_type} "
-                f"url={url} id={duplicate.id}"
-            )
-            return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
-
         with session.begin():
+            duplicate = _compute_duplicate(session, artifact_type, artifact_name, url)
+            if duplicate:
+                print(
+                    f"artifact_create: duplicate detected type={artifact_type} "
+                    f"url={url} id={duplicate.id}"
+                )
+                return jsonify(_to_envelope(duplicate)), HTTPStatus.CONFLICT
+
             artifact = Artifact(
                 name=artifact_name,
                 type=artifact_type,
@@ -408,57 +412,54 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
             session.add(artifact)
             session.flush()
 
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="CREATE",
+                user_id=user_id,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user_agent"),
+            )
+
             print(
                 f"artifact_create: created artifact id={artifact.id} "
                 f"type={artifact_type} name={artifact_name} url={url}"
             )
 
-            env = os.getenv("APP_ENV", "dev").lower()
-            status_code = HTTPStatus.CREATED
-            response_body: Response = jsonify(_to_envelope(artifact))
-            try:
-                if env in {"dev", "test"}:
-                    status = ingest_artifact(
-                        artifact.id
-                    )  # worker will manage status updates
-                    print(
-                        f"artifact_create: ingestion started locally id={artifact.id}"
+        env = os.getenv("APP_ENV", "dev").lower()
+        status_code = HTTPStatus.CREATED
+        response_body: Response = jsonify(_to_envelope(artifact))
+        try:
+            if env in {"dev", "test"}:
+                status = ingest_artifact(
+                    artifact.id
+                )  # worker will manage status updates
+                print(f"artifact_create: ingestion started locally id={artifact.id}")
+                session.refresh(artifact)
+                status = status or artifact.status
+                if status == ArtifactStatus.rejected:
+                    return (
+                        jsonify(
+                            {
+                                "error": (
+                                    "Artifact is not registered due to the "
+                                    "disqualified rating."
+                                )
+                            }
+                        ),
+                        HTTPStatus.FAILED_DEPENDENCY,
                     )
-                    session.refresh(artifact)
-                    status = status or artifact.status
-                    if status == ArtifactStatus.rejected:
-                        return (
-                            jsonify(
-                                {
-                                    "error": (
-                                        "Artifact is not registered due to the "
-                                        "disqualified rating."
-                                    )
-                                }
-                            ),
-                            HTTPStatus.FAILED_DEPENDENCY,
-                        )
-                    response_body = jsonify(_to_envelope(artifact))
-                elif env == "prod":
-                    _trigger_ingestion_lambda(artifact.id)
-                    status_code = HTTPStatus.ACCEPTED
-                    print(
-                        f"artifact_create: ingestion lambda triggered id={artifact.id}"
-                    )
+                response_body = jsonify(_to_envelope(artifact))
+            elif env == "prod":
+                _trigger_ingestion_lambda(artifact.id)
+                status_code = HTTPStatus.ACCEPTED
+                print(f"artifact_create: ingestion lambda triggered id={artifact.id}")
 
-                request_ctxt = get_request_context()
-                log_artifact_event(
-                    session=session,
-                    artifact_id=artifact.id,
-                    artifact_type=artifact.type,
-                    action="CREATE",
-                    user_id=user_id,
-                    request_ip=request_ctxt.get("request_ip"),
-                    user_agent=request_ctxt.get("user_agent"),
-                )
-            except Exception:
-                raise
-            return response_body, status_code
+        except Exception:
+            raise
+        return response_body, status_code
 
 
 @bp_artifact.post("/byRegEx")
