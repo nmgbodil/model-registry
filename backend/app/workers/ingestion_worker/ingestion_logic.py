@@ -183,6 +183,11 @@ def _fetch_artifact_archive(artifact: Artifact) -> Tuple[str, Dict[str, Any]]:
         archive_path = shutil.make_archive(archive_base, "zip", root_dir=repo.root)
         archive_path_path = Path(archive_path)
         readme_text = ingestion_metadata.get_readme_text(repo)
+        logger.info(
+            "ingestion: readme length=%s for artifact_id=%s",
+            len(readme_text or ""),
+            artifact.id,
+        )
         artifact_metadata: Dict[str, Any] = {
             "parent_artifact_ref": ingestion_metadata.get_parent_artifact(repo),
             "checksum_sha256": ingestion_metadata.compute_checksum_sha256(
