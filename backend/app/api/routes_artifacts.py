@@ -42,7 +42,7 @@ def _forbidden() -> ResponseReturnValue:
 
 
 @contextmanager
-def _regex_time_limit(seconds: float = 10.0) -> Iterator[None]:
+def _regex_time_limit(seconds: float = 5.0) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
     setitimer = getattr(signal, "setitimer", None)
     sigalrm = getattr(signal, "SIGALRM", None)
@@ -176,24 +176,33 @@ def artifacts_list() -> ResponseReturnValue:
     except ValueError:
         return jsonify({"error": "bad offset"}), HTTPStatus.BAD_REQUEST
 
-    names: List[str] = []
-    types: Set[str] = set()
-    for query in body:
-        if not isinstance(query, dict) or "name" not in query:
-            return jsonify({"error": "invalid ArtifactQuery"}), HTTPStatus.BAD_REQUEST
-        names.append(str(query["name"]))
-        for artifact_type in query.get("types") or []:
-            types.add(str(artifact_type))
-
     with orm_session() as session:
-        stmt = session.query(Artifact).order_by(Artifact.id.desc())
-        if names and not (len(names) == 1 and names[0] == "*"):
-            stmt = stmt.filter(Artifact.name.in_(names))
-        if types:
-            stmt = stmt.filter(Artifact.type.in_(list(types)))
+        seen_ids: Set[int] = set()
+        collected: List[Artifact] = []
+        for query in body:
+            if not isinstance(query, dict) or "name" not in query:
+                return (
+                    jsonify({"error": "invalid ArtifactQuery"}),
+                    HTTPStatus.BAD_REQUEST,
+                )
+            name_val = str(query["name"])
+            query_types = [str(t) for t in (query.get("types") or [])]
 
-        rows = stmt.offset(offset).limit(100).all()
-        items: List[Dict[str, Any]] = [_to_metadata(artifact) for artifact in rows]
+            stmt = session.query(Artifact).order_by(Artifact.id.desc())
+            if not (len(body) == 1 and name_val == "*"):
+                stmt = stmt.filter(Artifact.name == name_val)
+            if query_types:
+                stmt = stmt.filter(Artifact.type.in_(query_types))
+
+            rows = stmt.all()
+            for artifact in rows:
+                if artifact.id in seen_ids:
+                    continue
+                seen_ids.add(artifact.id)
+                collected.append(artifact)
+
+        sliced = collected[offset : offset + 100]
+        items: List[Dict[str, Any]] = [_to_metadata(artifact) for artifact in sliced]
 
     resp = make_response(jsonify(items), HTTPStatus.OK)
     resp.headers["offset"] = str(offset + len(items))
@@ -482,7 +491,7 @@ def artifact_by_regex() -> ResponseReturnValue:
 
     with orm_session() as session:
         stmt = session.query(Artifact).order_by(Artifact.id.desc())
-        candidates = stmt.limit(500).all()
+        candidates = stmt.all()
 
         matched: List[Dict[str, Any]] = []
         for artifact in candidates:
@@ -496,25 +505,6 @@ def artifact_by_regex() -> ResponseReturnValue:
                     matched.append(_to_metadata(artifact))
             except TimeoutError:
                 return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
-            if len(matched) >= 200:
-                break
-
-        # Fallback: if regex produced no matches, try a token-based ILIKE over
-        # name and README before returning 404, to mirror permissive behavior.
-        if not matched:
-            token = regex_val.replace(".*", "").strip("%")
-            if token:
-                rows = (
-                    session.query(Artifact)
-                    .filter(
-                        (Artifact.name.ilike(f"%{token}%"))
-                        | (Artifact.readme_text.ilike(f"%{token}%"))
-                    )
-                    .order_by(Artifact.id.desc())
-                    .limit(200)
-                    .all()
-                )
-                matched = [_to_metadata(artifact) for artifact in rows]
 
         if not matched:
             return (
