@@ -3,11 +3,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Navigation from "./components/Navigation";
-import UploadPage from "./pages/UploadPage";
-import BrowsePage from "./pages/BrowsePage";
-import SearchPage from "./pages/SearchPage";
-import ArtifactDetails from "./pages/ArtifactDetails";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Artifacts from "./pages/Artifacts";
+import ArtifactDetail from "./pages/ArtifactDetail";
+import ArtifactCreate from "./pages/ArtifactCreate";
+import Health from "./pages/Health";
+import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -15,21 +19,64 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Navigation />
-        <Routes>
-          <Route path="/" element={<BrowsePage />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          //*<Route path="/artifact/:id" element={<ArtifactDetails />} />
-          <Route path="/artifacts/:type/:id" element={<ArtifactDetails />} />
-
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/artifacts"
+              element={
+                <ProtectedRoute>
+                  <Artifacts />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/artifacts/new"
+              element={
+                <ProtectedRoute>
+                  <ArtifactCreate />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/artifacts/:type/:id"
+              element={
+                <ProtectedRoute>
+                  <ArtifactDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/health"
+              element={
+                <ProtectedRoute>
+                  <Health />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
