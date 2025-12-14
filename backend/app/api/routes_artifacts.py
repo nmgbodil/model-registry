@@ -387,6 +387,12 @@ def artifact_by_regex() -> ResponseReturnValue:
             .limit(200)
             .all()
         )
+        if not rows:
+            return (
+                jsonify({"error": "no artifact found under regex"}),
+                HTTPStatus.NOT_FOUND,
+            )
+
         items: List[Dict[str, Any]] = []
         for artifact in rows:
             readme_len = len(getattr(artifact, "readme_text", "") or "")
