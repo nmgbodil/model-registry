@@ -38,7 +38,7 @@ def _forbidden() -> ResponseReturnValue:
 
 
 @contextmanager
-def _regex_time_limit(seconds: float = 2.0) -> Iterator[None]:
+def _regex_time_limit(seconds: float = 10.0) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
     setitimer = getattr(signal, "setitimer", None)
     sigalrm = getattr(signal, "SIGALRM", None)
@@ -375,33 +375,54 @@ def artifact_by_regex() -> ResponseReturnValue:
     if not isinstance(regex_val, str) or not regex_val.strip():
         return jsonify({"error": "missing regex"}), HTTPStatus.BAD_REQUEST
 
-    token = regex_val.replace(".*", "").strip("%")
+    try:
+        pattern = re.compile(regex_val, re.IGNORECASE)
+    except re.error:
+        return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
+
     with orm_session() as session:
-        rows = (
-            session.query(Artifact)
-            .filter(
-                (Artifact.name.ilike(f"%{token}%"))
-                | (Artifact.readme_text.ilike(f"%{token}%"))
-            )
-            .order_by(Artifact.id.desc())
-            .limit(200)
-            .all()
-        )
-        if not rows:
+        stmt = session.query(Artifact).order_by(Artifact.id.desc())
+        candidates = stmt.limit(500).all()
+
+        matched: List[Dict[str, Any]] = []
+        for artifact in candidates:
+            name = artifact.name or ""
+            readme_text = getattr(artifact, "readme_text", "") or ""
+            try:
+                with _regex_time_limit():
+                    name_hit = pattern.search(name)
+                    readme_hit = pattern.search(readme_text)
+                if name_hit or readme_hit:
+                    matched.append(_to_metadata(artifact))
+            except TimeoutError:
+                return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
+            if len(matched) >= 200:
+                break
+
+        # Fallback: if regex produced no matches, try a token-based ILIKE over
+        # name and README before returning 404, to mirror permissive behavior.
+        if not matched:
+            token = regex_val.replace(".*", "").strip("%")
+            if token:
+                rows = (
+                    session.query(Artifact)
+                    .filter(
+                        (Artifact.name.ilike(f"%{token}%"))
+                        | (Artifact.readme_text.ilike(f"%{token}%"))
+                    )
+                    .order_by(Artifact.id.desc())
+                    .limit(200)
+                    .all()
+                )
+                matched = [_to_metadata(artifact) for artifact in rows]
+
+        if not matched:
             return (
                 jsonify({"error": "no artifact found under regex"}),
                 HTTPStatus.NOT_FOUND,
             )
 
-        items: List[Dict[str, Any]] = []
-        for artifact in rows:
-            readme_len = len(getattr(artifact, "readme_text", "") or "")
-            print(
-                f"regex search: artifact_id={artifact.id} name={artifact.name} "
-                f"readme_len={readme_len}"
-            )
-            items.append(_to_metadata(artifact))
-        return jsonify(items), HTTPStatus.OK
+        return jsonify(matched), HTTPStatus.OK
 
 
 @bp_artifact.get("/byName/<name>")
