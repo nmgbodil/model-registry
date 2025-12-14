@@ -375,37 +375,27 @@ def artifact_by_regex() -> ResponseReturnValue:
     if not isinstance(regex_val, str) or not regex_val.strip():
         return jsonify({"error": "missing regex"}), HTTPStatus.BAD_REQUEST
 
-    try:
-        pattern = re.compile(regex_val, re.IGNORECASE)
-    except re.error:
-        return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
-
+    token = regex_val.replace(".*", "").strip("%")
     with orm_session() as session:
-        stmt = session.query(Artifact).order_by(Artifact.id.desc())
-        candidates = stmt.limit(500).all()
-
-        matched: List[Dict[str, Any]] = []
-        for artifact in candidates:
-            name = artifact.name or ""
-            readme_text = getattr(artifact, "readme_text", "") or ""
-            try:
-                with _regex_time_limit():
-                    name_hit = pattern.search(name)
-                    readme_hit = pattern.search(readme_text)
-                if name_hit or readme_hit:
-                    matched.append(_to_metadata(artifact))
-            except TimeoutError:
-                return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
-            if len(matched) >= 200:
-                break
-
-        if not matched:
-            return (
-                jsonify({"error": "no artifact found under regex"}),
-                HTTPStatus.NOT_FOUND,
+        rows = (
+            session.query(Artifact)
+            .filter(
+                (Artifact.name.ilike(f"%{token}%"))
+                | (Artifact.readme_text.ilike(f"%{token}%"))
             )
-
-        return jsonify(matched), HTTPStatus.OK
+            .order_by(Artifact.id.desc())
+            .limit(200)
+            .all()
+        )
+        items: List[Dict[str, Any]] = []
+        for artifact in rows:
+            readme_len = len(getattr(artifact, "readme_text", "") or "")
+            print(
+                f"regex search: artifact_id={artifact.id} name={artifact.name} "
+                f"readme_len={readme_len}"
+            )
+            items.append(_to_metadata(artifact))
+        return jsonify(items), HTTPStatus.OK
 
 
 @bp_artifact.get("/byName/<name>")
