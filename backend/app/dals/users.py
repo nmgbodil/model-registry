@@ -26,3 +26,8 @@ def create_user(
 def get_user_by_username(session: Session, username: str) -> Optional[User]:
     """Return a user by username, if one exists."""
     return session.query(User).filter(User.username == username).one_or_none()
+
+
+def get_user_by_id(session: Session, user_id: str) -> Optional[User]:
+    """Return a user by id, if one exists."""
+    return session.get(User, user_id)

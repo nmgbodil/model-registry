@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import signal
 from contextlib import contextmanager
 from http import HTTPStatus
+from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Set, cast
 from urllib.parse import urlparse
 
@@ -16,16 +18,21 @@ from flask.typing import ResponseReturnValue
 from flask_jwt_extended import jwt_required
 
 from app.auth.api_request_limiter import enforce_api_limits
+from app.dals.artifact_audit import log_artifact_event
 from app.db.models import Artifact, ArtifactStatus
 from app.db.session import orm_session
 from app.services.storage import generate_presigned_url
 from app.utils import (
     _wait_for_ingestion,
     artifact_name_from_url,
+    get_request_context,
     get_user_id_from_token,
     role_allowed,
 )
-from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
+from app.workers.ingestion_worker.ingestion_logic import (
+    _fetch_artifact_archive,
+    ingest_artifact,
+)
 
 load_dotenv()
 
@@ -201,7 +208,7 @@ def artifacts_list() -> ResponseReturnValue:
 @enforce_api_limits
 def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Return artifact envelope by type and ID."""
-    _user_id, forbidden = _require_roles({"uploader", "downloader"})
+    user_id, forbidden = _require_roles({"uploader", "downloader"})
     if forbidden:
         return forbidden
 
@@ -222,7 +229,22 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
             return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
         if artifact.type != artifact_type:
             return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
-        return jsonify(_to_envelope(artifact)), HTTPStatus.OK
+        envelope = _to_envelope(artifact)
+        download_url = envelope.get("data", {}).get("download_url")
+        if download_url:
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="DOWNLOAD",
+                user_id=user_id,
+                previous_checksum=None,
+                new_checksum=None,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user-agent"),
+            )
+        return jsonify(envelope), HTTPStatus.OK
 
 
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")
@@ -230,7 +252,7 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 @enforce_api_limits
 def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Update artifact contents by type and ID."""
-    _user_id, forbidden = _require_roles({"uploader"})
+    user_id, forbidden = _require_roles({"uploader"})
     if forbidden:
         return forbidden
     body = cast(Dict[str, Any], request.get_json(force=True, silent=True) or {})
@@ -247,17 +269,71 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
         if artifact is None:
             return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
+        is_admin = role_allowed({"admin"})
+        if artifact.created_by is not None:
+            if artifact.created_by != user_id and not is_admin:
+                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+        else:
+            if not is_admin:
+                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
         name = metadata.get("name")
+        name_changed = False
         if isinstance(name, str) and name.strip():
             normalized = re.sub(r"\s+", "_", name.strip())
-            artifact.name = normalized
+            if artifact.name != normalized:
+                name_changed = True
+                artifact.name = normalized
 
         url = data.get("url")
+        content_changed = False
+        new_checksum: Optional[str] = None
+        old_checksum = artifact.checksum_sha256
         if isinstance(url, str) and url.strip():
-            artifact.source_url = url
+            artifact.source_url = url.strip()
+            try:
+                archive_path, meta = _fetch_artifact_archive(artifact)
+                new_checksum = meta.get("checksum_sha256")
+                if new_checksum and new_checksum != old_checksum:
+                    content_changed = True
+                    _trigger_ingestion_lambda(artifact.id)
+            finally:
+                if "archive_path" in locals():
+                    try:
+                        os.remove(archive_path)
+                        shutil.rmtree(Path(archive_path).parent, ignore_errors=True)
+                    except Exception:
+                        pass
 
         session.flush()
         session.commit()
+
+        if name_changed:
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="UPDATE_NAME",
+                user_id=user_id,
+                previous_checksum=None,
+                new_checksum=None,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user-agent"),
+            )
+        if content_changed:
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="UPDATE_CONTENT",
+                user_id=user_id,
+                previous_checksum=old_checksum,
+                new_checksum=new_checksum,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user-agent"),
+            )
         return jsonify({"message": "updated"}), HTTPStatus.OK
 
 
@@ -266,7 +342,7 @@ def artifact_put(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
 @enforce_api_limits
 def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     """Delete artifact by type and ID."""
-    _user_id, forbidden = _require_roles({"uploader"})
+    user_id, forbidden = _require_roles({"uploader"})
     if forbidden:
         return forbidden
     with orm_session() as session:
@@ -274,10 +350,29 @@ def artifact_delete(artifact_type: str, artifact_id: int) -> ResponseReturnValue
         if artifact is None:
             return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
 
+        if artifact.created_by:
+            if artifact.created_by != user_id and not role_allowed({"admin"}):
+                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+        else:
+            if not role_allowed({"admin"}):
+                return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+
         if artifact.type != artifact_type:
             return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
 
+        request_ctxt = get_request_context()
         session.delete(artifact)
+        log_artifact_event(
+            session=session,
+            artifact_id=artifact.id,
+            artifact_type=artifact.type,
+            action="DELETE",
+            user_id=user_id,
+            previous_checksum=artifact.checksum_sha256,
+            new_checksum=None,
+            request_ip=request_ctxt.get("request_ip"),
+            user_agent=request_ctxt.get("user-agent"),
+        )
         session.commit()
         return jsonify({"message": "deleted"}), HTTPStatus.OK
 
@@ -357,6 +452,19 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
                 _trigger_ingestion_lambda(artifact.id)
                 status_code = HTTPStatus.ACCEPTED
                 print(f"artifact_create: ingestion lambda triggered id={artifact.id}")
+
+            request_ctxt = get_request_context()
+            log_artifact_event(
+                session=session,
+                artifact_id=artifact.id,
+                artifact_type=artifact.type,
+                action="CREATE",
+                user_id=user_id,
+                previous_checksum=None,
+                new_checksum=None,
+                request_ip=request_ctxt.get("request_ip"),
+                user_agent=request_ctxt.get("user-agent"),
+            )
         except Exception:
             raise
         return response_body, status_code

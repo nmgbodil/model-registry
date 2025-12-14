@@ -11,7 +11,8 @@ from flask_jwt_extended import create_access_token
 
 from app import create_app
 from app.api import artifact as artifact_api
-from app.db.models import ArtifactStatus
+from app.api import routes_artifacts as artifacts_api
+from app.db.models import Artifact, ArtifactStatus
 from app.schemas.artifact import ArtifactCost
 from app.services.artifact import (
     ArtifactCostError,
@@ -38,7 +39,7 @@ def auth_headers(flask_app: Flask) -> dict[str, str]:
     """Provide authorization headers with a test JWT."""
     with flask_app.app_context():
         token = create_access_token(identity="test-user")
-    return {"Authorization": f"Bearer {token}"}  # noqa: E501
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture(autouse=True)
@@ -97,8 +98,14 @@ def test_get_artifact_cost_with_dependency_flag(
         "compute_artifact_cost",
         lambda artifact_id, include_dependencies=False: {
             5: ArtifactCost(total_cost=1255.0, standalone_cost=412.5),
-            4628173590: ArtifactCost(total_cost=280.0, standalone_cost=280.0),
-            5738291045: ArtifactCost(total_cost=562.5, standalone_cost=562.5),
+            4628173590: ArtifactCost(
+                total_cost=280.0,
+                standalone_cost=280.0,
+            ),
+            5738291045: ArtifactCost(
+                total_cost=562.5,
+                standalone_cost=562.5,
+            ),
         },
     )
 
@@ -340,3 +347,142 @@ def test_license_check_external_license_error_returns_502(
     body = resp.get_json()
     assert "error" in body
     assert "External license information could not be retrieved" in body["error"]
+
+
+# Artifact update authorization/logging
+
+
+class _FakeSession:
+    def __init__(self, artifact: Artifact) -> None:
+        self.artifact = artifact
+        self.flushed = False
+        self.committed = False
+
+    def get(self, model: Any, art_id: int) -> Artifact | None:
+        return self.artifact if self.artifact.id == art_id else None
+
+    def flush(self) -> None:
+        self.flushed = True
+
+    def commit(self) -> None:
+        self.committed = True
+
+
+class _SessionCtx:
+    def __init__(self, session: _FakeSession) -> None:
+        self.session = session
+
+    def __enter__(self) -> _FakeSession:
+        return self.session
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        return None
+
+
+def test_artifact_put_forbidden_when_not_creator(
+    flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only creator/admin can update artifacts."""
+    artifact = Artifact(id=1, name="demo", type="model", source_url="http://x")
+    artifact.created_by = "other-user"
+    session = _FakeSession(artifact)
+
+    monkeypatch.setattr(
+        artifacts_api,
+        "_require_roles",
+        lambda allowed: ("user-1", None),
+    )
+    monkeypatch.setattr(
+        artifacts_api,
+        "orm_session",
+        lambda: _SessionCtx(session),
+    )
+    monkeypatch.setattr(
+        artifacts_api,
+        "role_allowed",
+        lambda allowed: False,
+    )
+    monkeypatch.setattr(
+        artifacts_api,
+        "log_artifact_event",
+        lambda *a, **k: None,
+    )
+
+    client = flask_app.test_client()
+    resp = client.put(
+        "/api/artifacts/model/1",
+        json={"metadata": {"id": 1, "type": "model"}, "data": {}},
+    )
+    assert resp.status_code == 403
+
+
+def test_artifact_put_allows_creator_and_logs_name_change(
+    flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Creator can rename artifact; logs UPDATE_NAME."""
+    artifact = Artifact(id=1, name="demo", type="model", source_url="http://x")
+    artifact.created_by = "user-1"
+    session = _FakeSession(artifact)
+    logged: list[str] = []
+
+    monkeypatch.setattr(
+        artifacts_api,
+        "_require_roles",
+        lambda allowed: ("user-1", None),
+    )
+    monkeypatch.setattr(
+        artifacts_api,
+        "orm_session",
+        lambda: _SessionCtx(session),
+    )
+
+    def _log_event(*args: Any, **kwargs: Any) -> None:
+        logged.append(kwargs.get("action", ""))
+
+    monkeypatch.setattr(artifacts_api, "log_artifact_event", _log_event)
+
+    client = flask_app.test_client()
+    resp = client.put(
+        "/api/artifacts/model/1",
+        json={
+            "metadata": {"id": 1, "type": "model", "name": "new_name"},
+            "data": {},
+        },
+    )
+    assert resp.status_code == 200
+    assert "UPDATE_NAME" in logged
+
+
+def test_get_artifact_audit_forbidden_for_non_admin(
+    flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit endpoint forbidden when role not admin."""
+    monkeypatch.setattr(
+        artifact_api,
+        "role_allowed",
+        lambda allowed: False,
+    )
+    client = flask_app.test_client()
+    resp = client.get("/api/artifact/model/1/audit")
+    assert resp.status_code == 403
+
+
+def test_get_artifact_audit_success(
+    flask_app: Flask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit endpoint returns entries for admin."""
+    entries = [{"action": "CREATE"}]
+    monkeypatch.setattr(
+        artifact_api,
+        "role_allowed",
+        lambda allowed: True,
+    )
+    monkeypatch.setattr(
+        artifact_api,
+        "get_artifact_audit_entries",
+        lambda artifact_type, artifact_id: entries,
+    )
+    client = flask_app.test_client()
+    resp = client.get("/api/artifact/model/1/audit")
+    assert resp.status_code == 200
+    assert resp.get_json() == entries
