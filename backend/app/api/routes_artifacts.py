@@ -221,15 +221,16 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
     elif status is None:
         return jsonify({"error": "Artifact does not exist."}), HTTPStatus.NOT_FOUND
     with orm_session() as session:
-        artifact = session.get(Artifact, artifact_id)
-        if artifact is None:
-            return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
-        if artifact.type != artifact_type:
-            return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
-        envelope = _to_envelope(artifact)
-        download_url = envelope.get("data", {}).get("download_url")
-        if download_url:
-            with session.begin():
+        envelope: Dict[str, Any]
+        with session.begin():
+            artifact = session.get(Artifact, artifact_id)
+            if artifact is None:
+                return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
+            if artifact.type != artifact_type:
+                return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
+            envelope = _to_envelope(artifact)
+            download_url = envelope.get("data", {}).get("download_url")
+            if download_url:
                 request_ctxt = get_request_context()
                 log_artifact_event(
                     session=session,
