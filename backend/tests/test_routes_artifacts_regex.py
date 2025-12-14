@@ -19,6 +19,7 @@ def app() -> Generator[Flask, None, None]:
     app = create_app()
     with orm_session() as session:
         session.query(Artifact).delete()
+        session.commit()
     yield app
 
 
@@ -31,6 +32,8 @@ def client(app: Flask) -> FlaskClient:
 def _seed_artifacts(rows: List[Dict[str, Any]]) -> None:
     """Insert artifacts for test setup."""
     with orm_session() as session:
+        # Keep table clean between tests that reuse the same database.
+        session.query(Artifact).delete()
         for row in rows:
             session.add(Artifact(**row))
         session.flush()

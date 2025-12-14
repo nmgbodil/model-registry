@@ -7,6 +7,7 @@ import time
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
+from flask import request
 from flask_jwt_extended import get_jwt, get_jwt_identity
 
 from app.db.models import Artifact, ArtifactStatus, Rating
@@ -222,6 +223,15 @@ def _wait_for_ingestion(
             return ArtifactStatus.pending
 
         time.sleep(poll_seconds)
+
+
+def get_request_context() -> dict[str, str]:
+    """Collect request metadata used for auditing/logging."""
+    return {
+        "request_ip": request.headers.get("X-Forwarded-For", request.remote_addr or "")
+        or "",
+        "user_agent": request.headers.get("User-Agent") or "",
+    }
 
 
 if __name__ == "__main__":

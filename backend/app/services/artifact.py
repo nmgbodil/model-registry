@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import requests
 from flask import current_app
+from license_expression import Licensing
 
+from app.dals.artifact_audit import get_artifact_audit_log
 from app.dals.artifacts import get_artifact_by_id
+from app.dals.users import get_user_by_id
+from app.db.models import UserRole
 from app.db.session import orm_session
 from app.schemas.artifact import ArtifactCost
+from app.services.artifacts.code_fetcher import open_codebase
 
 
 class ArtifactCostError(Exception):
@@ -162,8 +167,9 @@ def fetch_github_license(
                 license_data.get("spdx_id") or license_data.get("key") or ""
             ).strip()
             if not spdx_id or spdx_id.upper() == "NOASSERTION":
-                msg = "GitHub did not expose a usable SPDX license id"
-                raise ExternalLicenseError(msg)
+                # Fallback to deterministic license detection via repository files
+                return fetch_repo_license_via_files(github_url)
+
             return LicenseInfo(spdx_id=spdx_id.lower())
         else:
             msg = f"GitHub /license endpoint failed: {license_resp.status_code}"
@@ -180,8 +186,9 @@ def fetch_github_license(
         license_data = repo_resp.json().get("license") or {}
         spdx_id = (license_data.get("spdx_id") or license_data.get("key") or "").strip()
         if not spdx_id or spdx_id.upper() == "NOASSERTION":
-            msg = "GitHub did not expose a usable SPDX license id"
-            raise ExternalLicenseError(msg)
+            # Fallback to deterministic license detection via repository files
+            return fetch_repo_license_via_files(github_url)
+
         return LicenseInfo(spdx_id=spdx_id.lower())
 
     except RepoNotFound:
@@ -202,6 +209,90 @@ def fetch_github_license(
         raise ExternalLicenseError(
             "Unexpected error while fetching GitHub license",
         ) from exc
+
+
+def fetch_repo_license_via_files(github_url: str) -> LicenseInfo:
+    """Fetch and detect license.
+
+    Inspects LICENSE / COPYING files when GitHub does not provide a usable SPDX id.
+    """
+    with open_codebase(github_url) as repo:
+        # Common license file patterns
+        candidates = (
+            list(repo.glob("LICENSE*"))
+            + list(repo.glob("COPYING*"))
+            + list(repo.glob("license*"))
+            + list(repo.glob("copying*"))
+        )
+
+        for path in candidates:
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+
+            detected = detect_spdx_from_license_text(text)
+            if detected:
+                # Validate SPDX expression using license-expression
+                licensing = Licensing()
+                try:
+                    licensing.parse(detected)
+                except Exception:
+                    continue
+
+                return LicenseInfo(spdx_id=detected)
+
+    raise ExternalLicenseError("Unable to detect license from repository contents")
+
+
+def detect_spdx_from_license_text(text: str) -> Optional[str]:
+    """Detect SPDX license identifier from raw license file text.
+
+    This function is deterministic and intentionally conservative.
+    It mirrors the behavior of lightweight SPDX scanners and avoids LLMs.
+    """
+    lowered = text.lower()
+
+    # ---- GPL family ----
+    if "gnu general public license" in lowered:
+        if "version 2" in lowered:
+            # Explicitly detect GPL-2.0-only vs or-later
+            if "only valid version" in lowered or "not v3" in lowered:
+                return "gpl-2.0-only"
+            if "or any later version" in lowered:
+                return "gpl-2.0-or-later"
+            return "gpl-2.0-only"  # conservative default
+        if "version 3" in lowered:
+            if "or any later version" in lowered:
+                return "gpl-3.0-or-later"
+            return "gpl-3.0-only"
+
+    # ---- LGPL ----
+    if "gnu lesser general public license" in lowered:
+        if "version 2.1" in lowered:
+            return "lgpl-2.1"
+        if "version 3" in lowered:
+            return "lgpl-3.0"
+
+    # ---- Apache ----
+    if "apache license" in lowered and "version 2.0" in lowered:
+        return "apache-2.0"
+
+    # ---- MIT ----
+    if "permission is hereby granted, free of charge" in lowered:
+        return "mit"
+
+    # ---- BSD ----
+    if "redistribution and use in source and binary forms" in lowered:
+        if "neither the name" in lowered:
+            return "bsd-3-clause"
+        return "bsd-2-clause"
+
+    # ---- MPL ----
+    if "mozilla public license" in lowered and "2.0" in lowered:
+        return "mpl-2.0"
+
+    return None
 
 
 def normalize_license_string(raw: Optional[str]) -> Optional[str]:
@@ -324,9 +415,7 @@ def check_model_license_compatibility(artifact_id: int, github_url: str) -> bool
 
     model_spdx = normalize_license_string(model_license_raw)
     if not model_spdx:
-        raise InvalidLicenseRequestError(
-            "Artifact has no recognized license; cannot evaluate compatibility."
-        )
+        return False
 
     try:
         repo_license = fetch_github_license(github_url)
@@ -345,3 +434,55 @@ def check_model_license_compatibility(artifact_id: int, github_url: str) -> bool
         repo_spdx=repo_license.spdx_id,
     )
     return compatible
+
+
+def get_artifact_audit_entries(
+    artifact_type: str, artifact_id: int
+) -> List[Dict[str, Any]]:
+    """Return audit entries for an artifact."""
+    allowed_types = {"model", "dataset", "code"}
+    if artifact_type not in allowed_types:
+        raise InvalidArtifactTypeError(
+            "There is missing field(s) in the artifact_type or artifact_id or it is "
+            "formed improperly, or is invalid."
+        )
+    if artifact_id <= 0:
+        raise InvalidArtifactIdError(
+            "There is missing field(s) in the artifact_type or artifact_id or it is "
+            "formed improperly, or is invalid."
+        )
+
+    with orm_session() as session:
+        artifact = get_artifact_by_id(session, artifact_id)
+        if artifact is None:
+            raise ArtifactNotFoundError("Artifact does not exist.")
+        if artifact.type != artifact_type:
+            raise InvalidArtifactTypeError(
+                "There is missing field(s) in the artifact_type or artifact_id or "
+                "it is formed improperly, or is invalid."
+            )
+
+        logs = get_artifact_audit_log(session=session, artifact_id=artifact_id)
+
+        entries: List[Dict[str, Any]] = []
+        for log in logs:
+            user = get_user_by_id(session, log.user_id) if log.user_id else None
+            entries.append(
+                {
+                    "user": {
+                        "name": user.username if user else None,
+                        "is_admin": bool(
+                            user and getattr(user, "role", None) == UserRole.admin
+                        ),
+                    },
+                    "date": log.occurred_at.isoformat(),
+                    "artifact": {
+                        "name": artifact.name,
+                        "id": artifact.id,
+                        "type": artifact.type,
+                    },
+                    "action": log.action,
+                }
+            )
+
+        return entries

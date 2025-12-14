@@ -360,16 +360,13 @@ class GitLabClient(_Client):
 if __name__ == "__main__":
     import json
 
-    hf_client = HFClient()
-    resp = hf_client.get_model_metadata("crangana/trained-gender")
-    # resp = hf_client.get_dataset_metadata("bookcorpus")
-    with open("response.json", "w") as fp:
-        json.dump(resp, fp)
-
-    # github_client = GitHubClient()
-    # resp = github_client.get_metadata(
-    #     "https://github.com/huggingface/transformers-research-projects/"
-    #     "tree/main/distillation"
-    # )
+    # hf_client = HFClient()
+    # resp = hf_client.get_model_metadata("crangana/trained-gender")
+    # # resp = hf_client.get_dataset_metadata("bookcorpus")
     # with open("response.json", "w") as fp:
     #     json.dump(resp, fp)
+
+    github_client = GitHubClient()
+    resp = github_client.get_metadata("https://github.com/microsoft/git")
+    with open("response.json", "w") as fp:
+        json.dump(resp, fp)
