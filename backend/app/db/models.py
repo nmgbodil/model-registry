@@ -6,7 +6,17 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -187,4 +197,68 @@ class Rating(Base):
     artifact: Mapped[Artifact] = relationship(
         "Artifact",
         back_populates="rating",
+    )
+
+
+class ArtifactAuditLog(Base):
+    """Append-only audit log for artifact lifecycle events."""
+
+    __tablename__ = "artifact_audit_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    artifact_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("artifacts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    artifact_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    previous_checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    new_checksum: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    request_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+
+    user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            """
+            action IN (
+                'CREATE',
+                'UPDATE_NAME',
+                'UPDATE_CONTENT',
+                'DOWNLOAD',
+                'RATE',
+                'DELETE',
+                'AUDIT'
+            )
+            """,
+            name="ck_audit_action",
+        ),
     )
