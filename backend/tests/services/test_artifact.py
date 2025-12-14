@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from types import TracebackType
+from types import SimpleNamespace, TracebackType
 from typing import Any, Optional
 
 import pytest
@@ -127,3 +127,95 @@ def test_compute_artifact_cost_missing_size(monkeypatch: Any) -> None:
 
     with pytest.raises(cost_service.ArtifactNotFoundError):
         cost_service.compute_artifact_cost(1)
+
+
+# License checks
+
+
+def _patch_license_session(
+    monkeypatch: pytest.MonkeyPatch, artifact: Optional[Artifact]
+) -> None:
+    fake_session = FakeSession()
+    monkeypatch.setattr(cost_service, "orm_session", lambda: FakeCtx(fake_session))
+    monkeypatch.setattr(cost_service, "get_artifact_by_id", lambda s, i: artifact)
+
+
+def test_check_license_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns True when licenses are compatible."""
+    artifact = Artifact(id=1, name="m", type="model", source_url="http://x")
+    artifact.license = "mit"
+    _patch_license_session(monkeypatch, artifact)
+    monkeypatch.setattr(
+        cost_service,
+        "fetch_github_license",
+        lambda url: SimpleNamespace(spdx_id="apache-2.0"),
+    )
+
+    result = cost_service.check_model_license_compatibility(
+        1, "https://github.com/org/repo"
+    )
+    assert result is True
+
+
+def test_check_license_invalid_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Raises on malformed github_url."""
+    artifact = Artifact(id=1, name="m", type="model", source_url="http://x")
+    artifact.license = "mit"
+    _patch_license_session(monkeypatch, artifact)
+
+    with pytest.raises(cost_service.InvalidLicenseRequestError):
+        cost_service.check_model_license_compatibility(1, "")
+
+
+def test_check_license_missing_artifact(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Raises when artifact not found."""
+    _patch_license_session(monkeypatch, None)
+
+    with pytest.raises(cost_service.ArtifactNotFoundError):
+        cost_service.check_model_license_compatibility(
+            99, "https://github.com/org/repo"
+        )
+
+
+def test_check_license_missing_license(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns False when artifact lacks license."""
+    artifact = Artifact(id=1, name="m", type="model", source_url="http://x")
+    artifact.license = None
+    _patch_license_session(monkeypatch, artifact)
+
+    result = cost_service.check_model_license_compatibility(
+        1, "https://github.com/org/repo"
+    )
+    assert result is False
+
+
+def test_check_license_repo_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RepoNotFound surfaces as ArtifactNotFoundError."""  # noqa: D403
+    artifact = Artifact(id=1, name="m", type="model", source_url="http://x")
+    artifact.license = "mit"
+    _patch_license_session(monkeypatch, artifact)
+    monkeypatch.setattr(
+        cost_service,
+        "fetch_github_license",
+        lambda url: (_ for _ in ()).throw(cost_service.RepoNotFound("nf")),
+    )
+
+    with pytest.raises(cost_service.ArtifactNotFoundError):
+        cost_service.check_model_license_compatibility(1, "https://github.com/org/repo")
+
+
+def test_check_license_incompatible(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Returns False when licenses conflict."""
+    artifact = Artifact(id=1, name="m", type="model", source_url="http://x")
+    artifact.license = "mit"
+    _patch_license_session(monkeypatch, artifact)
+    monkeypatch.setattr(
+        cost_service,
+        "fetch_github_license",
+        lambda url: SimpleNamespace(spdx_id="gpl-3.0"),
+    )
+
+    result = cost_service.check_model_license_compatibility(
+        1, "https://github.com/org/repo"
+    )
+    assert result is False
