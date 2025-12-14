@@ -65,11 +65,39 @@ def test_artifact_by_regex_hits_name(client: FlaskClient) -> None:
 
 def test_artifact_by_regex_hits_readme(client: FlaskClient) -> None:
     """Regex search returns artifacts matching README text."""
-    # Disabled: current endpoint implementation only searches names.
-    pass
+    _seed_artifacts(
+        [
+            {
+                "id": 20,
+                "name": "unrelated",
+                "type": "model",
+                "source_url": "http://x",
+                "readme_text": "This model excels at sentiment analysis tasks.",
+            }
+        ]
+    )
+    resp = client.post("/api/artifact/byRegEx", json={"regex": "sentiment"})
+    assert resp.status_code == 200
+    items = resp.get_json()
+    assert isinstance(items, list)
+    assert any(item["id"] == "20" for item in items)
 
 
 def test_artifact_by_regex_returns_404_when_no_match(client: FlaskClient) -> None:
     """Regex search returns 404 when nothing matches name or README."""
-    # Disabled: current endpoint returns empty list with 200 when no matches.
-    pass
+    _seed_artifacts(
+        [
+            {
+                "id": 30,
+                "name": "unrelated",
+                "type": "model",
+                "source_url": "http://x",
+                "readme_text": "content here",
+            }
+        ]
+    )
+    resp = client.post(
+        "/api/artifact/byRegEx", json={"regex": "nonsense-should-not-match"}
+    )
+    assert resp.status_code == 404
+    assert "no artifact" in resp.get_data(as_text=True).lower()
