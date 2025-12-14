@@ -357,6 +357,7 @@ class _FakeSession:
         self.artifact = artifact
         self.flushed = False
         self.committed = False
+        self.begin_called = False
 
     def get(self, model: Any, art_id: int) -> Artifact | None:
         return self.artifact if self.artifact.id == art_id else None
@@ -367,8 +368,23 @@ class _FakeSession:
     def commit(self) -> None:
         self.committed = True
 
+    def begin(self) -> "_FakeSessionCtx":
+        self.begin_called = True
+        return _FakeSessionCtx(self)
+
 
 class _SessionCtx:
+    def __init__(self, session: _FakeSession) -> None:
+        self.session = session
+
+    def __enter__(self) -> _FakeSession:
+        return self.session
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        return None
+
+
+class _FakeSessionCtx:
     def __init__(self, session: _FakeSession) -> None:
         self.session = session
 

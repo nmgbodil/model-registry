@@ -26,8 +26,6 @@ def log_artifact_event(
     artifact_type: str,
     action: str,
     user_id: Optional[str],
-    previous_checksum: Optional[str] = None,
-    new_checksum: Optional[str] = None,
     request_ip: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> None:
@@ -46,8 +44,6 @@ def log_artifact_event(
         artifact_type=artifact_type,
         action=action,
         user_id=user_id,
-        previous_checksum=previous_checksum,
-        new_checksum=new_checksum,
         request_ip=request_ip,
         user_agent=user_agent,
     )
