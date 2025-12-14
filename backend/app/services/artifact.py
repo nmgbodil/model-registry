@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import requests
 from flask import current_app
 from license_expression import Licensing
 
+from app.dals.artifact_audit import get_artifact_audit_log
 from app.dals.artifacts import get_artifact_by_id
+from app.dals.users import get_user_by_id
+from app.db.models import UserRole
 from app.db.session import orm_session
 from app.schemas.artifact import ArtifactCost
 from app.services.artifacts.code_fetcher import open_codebase
@@ -431,3 +434,55 @@ def check_model_license_compatibility(artifact_id: int, github_url: str) -> bool
         repo_spdx=repo_license.spdx_id,
     )
     return compatible
+
+
+def get_artifact_audit_entries(
+    artifact_type: str, artifact_id: int
+) -> List[Dict[str, Any]]:
+    """Return audit entries for an artifact."""
+    allowed_types = {"model", "dataset", "code"}
+    if artifact_type not in allowed_types:
+        raise InvalidArtifactTypeError(
+            "There is missing field(s) in the artifact_type or artifact_id or it is "
+            "formed improperly, or is invalid."
+        )
+    if artifact_id <= 0:
+        raise InvalidArtifactIdError(
+            "There is missing field(s) in the artifact_type or artifact_id or it is "
+            "formed improperly, or is invalid."
+        )
+
+    with orm_session() as session:
+        artifact = get_artifact_by_id(session, artifact_id)
+        if artifact is None:
+            raise ArtifactNotFoundError("Artifact does not exist.")
+        if artifact.type != artifact_type:
+            raise InvalidArtifactTypeError(
+                "There is missing field(s) in the artifact_type or artifact_id or "
+                "it is formed improperly, or is invalid."
+            )
+
+        logs = get_artifact_audit_log(session=session, artifact_id=artifact_id)
+
+        entries: List[Dict[str, Any]] = []
+        for log in logs:
+            user = get_user_by_id(session, log.user_id) if log.user_id else None
+            entries.append(
+                {
+                    "user": {
+                        "name": user.username if user else None,
+                        "is_admin": bool(
+                            user and getattr(user, "role", None) == UserRole.admin
+                        ),
+                    },
+                    "date": log.occurred_at.isoformat(),
+                    "artifact": {
+                        "name": artifact.name,
+                        "id": artifact.id,
+                        "type": artifact.type,
+                    },
+                    "action": log.action,
+                }
+            )
+
+        return entries

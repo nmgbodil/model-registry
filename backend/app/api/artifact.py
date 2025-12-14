@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required
 from app.auth.api_request_limiter import enforce_api_limits
 from app.db.models import ArtifactStatus
 from app.schemas.artifact import ArtifactCost
-from app.services.artifact import (
+from app.services.artifact import (  # noqa: E501
     ArtifactCostError,
     ArtifactNotFoundError,
     ExternalLicenseError,
@@ -18,6 +18,7 @@ from app.services.artifact import (
     InvalidLicenseRequestError,
     check_model_license_compatibility,
     compute_artifact_cost,
+    get_artifact_audit_entries,
 )
 from app.utils import (
     _wait_for_ingestion,
@@ -147,4 +148,25 @@ def check_model_license(artifact_id: int) -> Tuple[Response, HTTPStatus]:
         print(
             f"license_check: unexpected error artifact_id={artifact_id} " f"error={msg}"
         )
+        return jsonify({"error": msg}), HTTPStatus.INTERNAL_SERVER_ERROR
+
+
+@bp_artifact.get("/<artifact_type>/<int:artifact_id>/audit")
+@jwt_required()  # type: ignore[misc]
+@enforce_api_limits
+def get_artifact_audit(
+    artifact_type: str, artifact_id: int
+) -> Tuple[Response, HTTPStatus]:
+    """Return audit entries for the given artifact (admin-only)."""
+    if not role_allowed({"admin"}):
+        return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
+    try:
+        entries = get_artifact_audit_entries(artifact_type, artifact_id)
+        return jsonify(entries), HTTPStatus.OK
+    except (InvalidArtifactIdError, InvalidArtifactTypeError) as exc:
+        return jsonify({"error": str(exc)}), HTTPStatus.BAD_REQUEST
+    except ArtifactNotFoundError as exc:
+        return jsonify({"error": str(exc)}), HTTPStatus.NOT_FOUND
+    except Exception as exc:
+        msg = str(exc) or "Failed to retrieve audit log."
         return jsonify({"error": msg}), HTTPStatus.INTERNAL_SERVER_ERROR
