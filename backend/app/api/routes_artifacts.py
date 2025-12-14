@@ -220,32 +220,27 @@ def artifact_get(artifact_type: str, artifact_id: int) -> ResponseReturnValue:
         )
     elif status is None:
         return jsonify({"error": "Artifact does not exist."}), HTTPStatus.NOT_FOUND
-
     with orm_session() as session:
         artifact = session.get(Artifact, artifact_id)
         if artifact is None:
             return jsonify({"error": "not found"}), HTTPStatus.NOT_FOUND
         if artifact.type != artifact_type:
             return jsonify({"error": "type mismatch"}), HTTPStatus.BAD_REQUEST
-
         envelope = _to_envelope(artifact)
         download_url = envelope.get("data", {}).get("download_url")
-
         if download_url:
-            # ingen extra session.begin() här
-            request_ctxt = get_request_context()
-            log_artifact_event(
-                session=session,
-                artifact_id=artifact.id,
-                artifact_type=artifact.type,
-                action="DOWNLOAD",
-                user_id=user_id,
-                request_ip=request_ctxt.get("request_ip"),
-                user_agent=request_ctxt.get("user_agent"),
-            )
-
+            with session.begin():
+                request_ctxt = get_request_context()
+                log_artifact_event(
+                    session=session,
+                    artifact_id=artifact.id,
+                    artifact_type=artifact.type,
+                    action="DOWNLOAD",
+                    user_id=user_id,
+                    request_ip=request_ctxt.get("request_ip"),
+                    user_agent=request_ctxt.get("user_agent"),
+                )
         return jsonify(envelope), HTTPStatus.OK
-
 
 
 @bp_artifacts.put("/<artifact_type>/<int:artifact_id>")

@@ -8,6 +8,11 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      '/health':   { target: 'http://10.186.15.115:8000', changeOrigin: true },
+      '/artifact': { target: 'http://10.186.15.115:8000', changeOrigin: true },
+      '/artifacts':{ target: 'http://10.186.15.115:8000', changeOrigin: true },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
