@@ -254,7 +254,6 @@ class ArtifactAuditLog(Base):
                 'UPDATE_NAME',
                 'UPDATE_CONTENT',
                 'DOWNLOAD',
-                'RATE',
                 'DELETE',
                 'AUDIT'
             )
