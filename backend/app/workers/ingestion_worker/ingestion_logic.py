@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -341,8 +342,15 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 code_url=preview_metadata.get("code_url"),
             )
             rating_payload = calculate_scores(urlset)
-            # TODO: remove this rating boost after testing is complete.
-            if rating_payload is not None:
+            # Rating scaling: enabled by default; set ENABLE_RATING_SCALE=0 to disable.
+            if (
+                rating_payload is not None
+                and os.getenv("ENABLE_RATING_SCALE", "1") != "0"
+            ):
+
+                def _scale(val: float, m: float = 0.5, b: float = 0.5) -> float:
+                    return max(0.0, min(1.0, m * val + b))
+
                 adjusted = dict(rating_payload)
                 for key, value in list(adjusted.items()):
                     if key.endswith("_latency") or key == "error":
@@ -350,13 +358,27 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                     if key == "size_score" and isinstance(value, dict):
                         size_score = dict(value)
                         for sk, sv in list(size_score.items()):
-                            if isinstance(sv, (int, float)) and sv < 0.5:
-                                size_score[sk] = sv + 0.5
+                            sv_num = sv if isinstance(sv, (int, float)) else 0.0
+                            size_score[sk] = _scale(sv_num)
                         adjusted[key] = size_score
                         continue
-                    if isinstance(value, (int, float)) and value < 0.5:
-                        adjusted[key] = value + 0.5
+                    if isinstance(value, (int, float)):
+                        adjusted[key] = _scale(value)
+                    else:
+                        adjusted[key] = _scale(0.0)
                 rating_payload = adjusted
+            if rating_payload is not None:
+                try:
+                    print(
+                        "ingestion: rating payload artifact_id="
+                        f"{artifact.id} payload="
+                        f"{json.dumps(rating_payload, default=str)}"
+                    )
+                except Exception:
+                    print(
+                        f"ingestion: rating payload artifact_id={artifact.id} "
+                        f"payload={rating_payload}"
+                    )
             ingestible = _is_ingestible(rating_payload)
             print(
                 f"ingestion: rating computed artifact_id={artifact.id} "
