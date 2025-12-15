@@ -27,9 +27,7 @@ from app.utils import (
     get_user_id_from_token,
     role_allowed,
 )
-from app.workers.ingestion_worker.ingestion_logic import (
-    ingest_artifact,
-)
+from app.workers.ingestion_worker.ingestion_logic import ingest_artifact
 
 load_dotenv()
 
@@ -42,7 +40,7 @@ def _forbidden() -> ResponseReturnValue:
 
 
 @contextmanager
-def _regex_time_limit(seconds: float = 5.0) -> Iterator[None]:
+def _regex_time_limit(seconds: float = 2.0) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
     setitimer = getattr(signal, "setitimer", None)
     sigalrm = getattr(signal, "SIGALRM", None)
@@ -473,6 +471,7 @@ def artifact_create(artifact_type: str) -> tuple[Response, HTTPStatus]:
 
 
 @bp_artifact.post("/byRegEx")
+@bp_artifacts.post("/byRegEx")
 @jwt_required()  # type: ignore[misc]
 @enforce_api_limits
 def artifact_by_regex() -> ResponseReturnValue:
@@ -490,11 +489,14 @@ def artifact_by_regex() -> ResponseReturnValue:
     except re.error:
         return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
 
+    env = os.getenv("APP_ENV", "dev").lower()
+
     with orm_session() as session:
         stmt = session.query(Artifact).order_by(Artifact.id.desc())
         candidates = stmt.all()
 
         matched: List[Dict[str, Any]] = []
+        seen_ids: Set[int] = set()
         for artifact in candidates:
             name = artifact.name or ""
             readme_text = getattr(artifact, "readme_text", "") or ""
@@ -503,7 +505,9 @@ def artifact_by_regex() -> ResponseReturnValue:
                     name_hit = pattern.search(name)
                     readme_hit = pattern.search(readme_text)
                 if name_hit or readme_hit:
-                    matched.append(_to_metadata(artifact))
+                    if artifact.id not in seen_ids:
+                        seen_ids.add(artifact.id)
+                        matched.append(_to_metadata(artifact))
             except TimeoutError:
                 return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
 
@@ -512,6 +516,15 @@ def artifact_by_regex() -> ResponseReturnValue:
                 jsonify({"error": "no artifact found under regex"}),
                 HTTPStatus.NOT_FOUND,
             )
+
+        if env in {"dev", "test"}:
+            try:
+                print(
+                    f"regex search pattern={regex_val} matches={len(matched)} "
+                    f"(direct+fallback)"
+                )
+            except Exception:
+                pass
 
         return jsonify(matched), HTTPStatus.OK
 
