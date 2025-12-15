@@ -56,6 +56,26 @@ line_length = 88
 strict = true
 files = ["backend/app", "backend/tests"]
 exclude = "venv"
+
+[[tool.mypy.overrides]]
+module = [
+  "flask",
+  "flask.*",
+  "flask_jwt_extended",
+  "flask_jwt_extended.*",
+  "flask_cors",
+  "flask.typing",
+  "redis",
+  "bcrypt",
+  "dotenv",
+  "python_dotenv",
+  "boto3",
+  "botocore.*",
+  "openai",
+  "openai.types.chat",
+  "huggingface_hub",
+  "git",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
