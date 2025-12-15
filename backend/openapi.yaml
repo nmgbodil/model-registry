@@ -447,6 +447,42 @@ paths:
           $ref: "#/components/schemas/AuthenticationToken"
         in: header
         required: true
+  /register:
+    summary: Register a new user account.
+    description: Create a user with username/password credentials.
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistrationRequest"
+            examples:
+              ExampleRequest:
+                value:
+                  username: exampleuser
+                  password: ComplexP@ssw0rd!
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistrationResponse"
+              examples:
+                ExampleResponse:
+                  value:
+                    id: "d2c6e9c8-6fd7-4f1f-9d4b-2f8e7d9a0a1b"
+                    username: exampleuser
+          description: User created successfully.
+        "400":
+          description: Invalid registration payload (missing or malformed username/password).
+        "409":
+          description: Username already exists.
+        "500":
+          description: Registration failed due to a server error.
+      operationId: RegisterUser
+      summary: (NON-BASELINE)
+      description: Register a new user and return the created user record.
   /authenticate:
     summary: Authenticate this user -- get an access token.
     description: |-
@@ -1235,6 +1271,32 @@ components:
         secret:
           $ref: "#/components/schemas/UserAuthenticationInfo"
           description: ""
+    RegistrationRequest:
+      description: Payload to create a user.
+      required:
+        - username
+        - password
+      type: object
+      properties:
+        username:
+          type: string
+          description: Desired username.
+        password:
+          type: string
+          description: Password meeting complexity rules (>=8 chars, includes number and special char).
+    RegistrationResponse:
+      description: Created user record.
+      required:
+        - id
+        - username
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the user.
+        username:
+          type: string
+          description: Username that was registered.
     EnumerateOffset:
       description: Offset in pagination.
       type: string
