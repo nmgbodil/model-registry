@@ -39,6 +39,24 @@ def _forbidden() -> ResponseReturnValue:
     return jsonify({"error": "forbidden"}), HTTPStatus.FORBIDDEN
 
 
+def _is_redos_pattern(pattern_str: str) -> bool:
+    """Heuristic detection of obviously dangerous regex patterns."""
+    redos_substrings = [
+        r"(.*)+",
+        r"(.+)+",
+        r"(.?)+",
+        r"(.*){2,}",
+        r"(.+){2,}",
+        r"(.?){2,}",
+        r"(a+)+",
+        r"(\w+)+",
+        r"(\d+)+",
+        r"(a|aa)+",
+        r"(x|xx)+",
+    ]
+    return any(sub in pattern_str for sub in redos_substrings)
+
+
 @contextmanager
 def _regex_time_limit(seconds: float = 2.0) -> Iterator[None]:
     """Abort regex evaluation if it exceeds the time budget (best-effort on Unix)."""
@@ -483,6 +501,8 @@ def artifact_by_regex() -> ResponseReturnValue:
     regex_val = body.get("regex")
     if not isinstance(regex_val, str) or not regex_val.strip():
         return jsonify({"error": "missing regex"}), HTTPStatus.BAD_REQUEST
+    if _is_redos_pattern(regex_val):
+        return jsonify({"error": "invalid regex"}), HTTPStatus.BAD_REQUEST
 
     try:
         pattern = re.compile(regex_val, re.IGNORECASE)
