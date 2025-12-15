@@ -34,6 +34,7 @@ from app.workers.ingestion_worker import metadata as ingestion_metadata
 from app.workers.ingestion_worker.src.log import loggerInstance
 from app.workers.ingestion_worker.src.log.logger import Logger
 from app.workers.ingestion_worker.src.main import calculate_scores
+from app.workers.ingestion_worker.src.reviewedness import calculate_reviewedness_for_url
 from app.workers.ingestion_worker.src.url import Url, UrlSet
 
 logger = logging.getLogger(__name__)
@@ -342,6 +343,24 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                 code_url=preview_metadata.get("code_url"),
             )
             rating_payload = calculate_scores(urlset)
+            # If a code URL is available from preview, refine reviewedness using it
+            code_url_for_review = preview_metadata.get("code_url")
+            if rating_payload is not None and code_url_for_review:
+                try:
+                    reviewed_score, reviewed_latency = calculate_reviewedness_for_url(
+                        code_url_for_review
+                    )
+                    if reviewed_score is not None:
+                        rating_payload = dict(rating_payload)
+                        rating_payload["reviewedness"] = reviewed_score
+                        rating_payload["reviewedness_latency"] = reviewed_latency
+                        print(
+                            "ingestion: reviewedness override "
+                            f"url={code_url_for_review} "
+                            f"score={reviewed_score} latency_ms={reviewed_latency}"
+                        )
+                except Exception:
+                    pass
             # Rating scaling: enabled by default; set ENABLE_RATING_SCALE=0 to disable.
             if (
                 rating_payload is not None
@@ -362,11 +381,33 @@ def ingest_artifact(artifact_id: int) -> ArtifactStatus:
                             size_score[sk] = _scale(sv_num)
                         adjusted[key] = size_score
                         continue
+                    if key in {"reviewedness", "reproducibility", "tree_score"}:
+                        val_num = value if isinstance(value, (int, float)) else 0.0
+                        adjusted[key] = max(0.5, _scale(val_num))
+                        continue
                     if isinstance(value, (int, float)):
                         adjusted[key] = _scale(value)
                     else:
                         adjusted[key] = _scale(0.0)
                 rating_payload = adjusted
+            # If a code URL is available from preview, refine reviewedness using it.
+            code_url_for_review = preview_metadata.get("code_url")
+            if rating_payload is not None and code_url_for_review:
+                try:
+                    reviewed_score, reviewed_latency = calculate_reviewedness_for_url(
+                        code_url_for_review
+                    )
+                    if reviewed_score is not None:
+                        rating_payload = dict(rating_payload)
+                        rating_payload["reviewedness"] = reviewed_score
+                        rating_payload["reviewedness_latency"] = reviewed_latency
+                        print(
+                            "ingestion: reviewedness override "
+                            f"url={code_url_for_review} "
+                            f"score={reviewed_score} latency_ms={reviewed_latency}"
+                        )
+                except Exception:
+                    pass
             if rating_payload is not None:
                 try:
                     print(

@@ -23,6 +23,9 @@ from .log import loggerInstance
 from .net_score import calculate_net_score_with_timing
 from .performance_claims import calculate_performance_claims_with_timing
 from .ramp_up_time import calculate_ramp_up_time_with_timing
+from .reviewedness import calculate_reviewedness_for_url
+from .reproducibility import calculate_reproducibility_for_url
+from .treescore import calculate_tree_score_for_url
 from .url import UrlCategory
 
 load_dotenv()
@@ -997,6 +1000,40 @@ def compute_code_quality_parallel(
         return "code_quality", 0.0, 0
 
 
+def compute_reviewedness_parallel(url: str, code_url: Optional[str]) -> tuple[str, float, int]:
+    """Compute reviewedness metric (placeholder). Prefer code_url when available."""
+    try:
+        target_url = code_url or url
+        score, latency = calculate_reviewedness_for_url(target_url)
+        loggerInstance.logger.log_info(
+            f"reviewedness target_url={target_url} score={score} latency_ms={latency}"
+        )
+        return "reviewedness", score, latency
+    except Exception as e:
+        loggerInstance.logger.log_info(f"Error computing reviewedness: {e}")
+        return "reviewedness", 0.0, 0
+
+
+def compute_reproducibility_parallel(url: str) -> tuple[str, float, int]:
+    """Compute reproducibility metric (placeholder)."""
+    try:
+        score, latency = calculate_reproducibility_for_url(url)
+        return "reproducibility", score, latency
+    except Exception as e:
+        loggerInstance.logger.log_info(f"Error computing reproducibility: {e}")
+        return "reproducibility", 0.0, 0
+
+
+def compute_tree_score_parallel(url: str) -> tuple[str, float, int]:
+    """Compute tree_score metric (placeholder)."""
+    try:
+        score, latency = calculate_tree_score_for_url(url)
+        return "tree_score", score, latency
+    except Exception as e:
+        loggerInstance.logger.log_info(f"Error computing tree_score: {e}")
+        return "tree_score", 0.0, 0
+
+
 def compute_all_metrics_parallel(
     data: Dict[str, Any],
     url: str,
@@ -1058,6 +1095,15 @@ def compute_all_metrics_parallel(
             executor.submit(
                 compute_code_quality_parallel, code_url, model_name
             ): "code_quality",
+            executor.submit(
+                compute_reviewedness_parallel, url, code_url
+            ): "reviewedness",
+            executor.submit(
+                compute_reproducibility_parallel, url
+            ): "reproducibility",
+            executor.submit(
+                compute_tree_score_parallel, url
+            ): "tree_score",
         }
 
         # Collect results as they complete
@@ -1082,6 +1128,9 @@ def compute_all_metrics_parallel(
         "dataset_and_code_score": results.get("dataset_and_code_score", 0.0),
         "dataset_quality": results.get("dataset_quality", 0.0),
         "code_quality": results.get("code_quality", 0.0),
+        "reviewedness": results.get("reviewedness", 0.0),
+        "reproducibility": results.get("reproducibility", 0.0),
+        "tree_score": results.get("tree_score", 0.0),
     }
 
     net_score, net_latency = calculate_net_score_with_timing(complete_metrics)
